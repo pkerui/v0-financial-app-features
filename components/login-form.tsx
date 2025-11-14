@@ -28,9 +28,9 @@ export function LoginForm() {
         <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-primary/10 mx-auto mb-2">
           <Lock className="h-6 w-6 text-primary" />
         </div>
-        <CardTitle className="text-center text-2xl">Welcome Back</CardTitle>
+        <CardTitle className="text-center text-2xl">欢迎回来</CardTitle>
         <CardDescription className="text-center">
-          Sign in to your homestay management account
+          登录您的民宿管理账户
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -38,12 +38,12 @@ export function LoginForm() {
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
-              Email Address
+              邮箱地址
             </Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="your@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="bg-input"
@@ -54,7 +54,7 @@ export function LoginForm() {
           <div className="space-y-2">
             <Label htmlFor="password" className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-muted-foreground" />
-              Password
+              密码
             </Label>
             <Input
               id="password"
@@ -72,15 +72,15 @@ export function LoginForm() {
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={isLoading}
           >
-            {isLoading ? 'Signing in...' : 'Sign In'}
+            {isLoading ? '正在登录...' : '登录'}
           </Button>
         </form>
 
         <div className="mt-6 space-y-3 pt-4 border-t border-border">
-          <p className="text-xs text-center text-muted-foreground">Demo Credentials</p>
+          <p className="text-xs text-center text-muted-foreground">演示账户</p>
           <div className="text-xs text-muted-foreground space-y-1">
-            <p>Email: <span className="text-foreground font-mono">demo@homestay.com</span></p>
-            <p>Password: <span className="text-foreground font-mono">demo123</span></p>
+            <p>邮箱: <span className="text-foreground font-mono">demo@homestay.com</span></p>
+            <p>密码: <span className="text-foreground font-mono">demo123</span></p>
           </div>
         </div>
       </CardContent>
