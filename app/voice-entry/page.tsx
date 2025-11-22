@@ -1,9 +1,35 @@
 import { VoiceEntryInterface } from '@/components/voice-entry-interface'
+import { getTransactionCategories } from '@/lib/api/transaction-categories'
+import { getFinancialSettings } from '@/lib/api/financial-settings'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
-export default function VoiceEntryPage() {
+export default async function VoiceEntryPage() {
+  const supabase = await createClient()
+
+  // 获取当前用户
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/')
+  }
+
+  // 获取分类数据
+  const { data: incomeCategories } = await getTransactionCategories('income')
+  const { data: expenseCategories } = await getTransactionCategories('expense')
+
+  // 获取财务设置
+  const { data: financialSettings } = await getFinancialSettings()
+
   return (
     <main className="min-h-screen bg-background">
-      <VoiceEntryInterface />
+      <VoiceEntryInterface
+        incomeCategories={incomeCategories || []}
+        expenseCategories={expenseCategories || []}
+        initialBalanceDate={financialSettings?.initial_balance_date}
+      />
     </main>
   )
 }
