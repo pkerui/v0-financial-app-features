@@ -16,15 +16,21 @@ export interface CategoryMapping {
  * 收入分类映射
  */
 export const incomeCategoryMapping: Record<string, CategoryMapping> = {
+  // 经营活动收入
   '房费收入': {
     activity: 'operating',
     direction: 'inflow',
     label: '房费收入'
   },
-  '押金收入': {
+  '房租收入': {
     activity: 'operating',
     direction: 'inflow',
-    label: '押金收入'
+    label: '房租收入'
+  },
+  '服务费收入': {
+    activity: 'operating',
+    direction: 'inflow',
+    label: '服务费收入'
   },
   '额外服务': {
     activity: 'operating',
@@ -42,7 +48,12 @@ export const incomeCategoryMapping: Record<string, CategoryMapping> = {
     direction: 'inflow',
     label: '处置固定资产收入'
   },
-  // 筹资活动收入
+  // 筹资活动收入（押金、借款等）
+  '押金收入': {
+    activity: 'financing',
+    direction: 'inflow',
+    label: '押金收入'
+  },
   '银行贷款': {
     activity: 'financing',
     direction: 'inflow',
@@ -121,7 +132,12 @@ export const expenseCategoryMapping: Record<string, CategoryMapping> = {
     direction: 'outflow',
     label: '软件系统购置'
   },
-  // 筹资活动支出
+  // 筹资活动支出（押金退还、偿还借款等）
+  '押金退还': {
+    activity: 'financing',
+    direction: 'outflow',
+    label: '押金退还'
+  },
   '偿还贷款': {
     activity: 'financing',
     direction: 'outflow',
