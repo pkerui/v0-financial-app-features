@@ -42,6 +42,7 @@ import {
   type TransactionCategory,
 } from '@/lib/api/transaction-categories'
 import { useRouter } from 'next/navigation'
+import { sortByPinyin } from '@/lib/utils/pinyin-sort'
 
 type CategoryManagementProps = {
   incomeCategories: TransactionCategory[]
@@ -238,11 +239,22 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
 
   // 渲染类型列表
   const renderCategoryList = (categories: TransactionCategory[], type: 'income' | 'expense') => {
-    // 按是否计入利润表排序：先显示计入的（true），再显示不计入的（false）
+    // 先按是否计入利润表分组，再按拼音排序
     const sortedCategories = [...categories].sort((a, b) => {
+      // 第一优先级：是否计入利润表（true 在前，false 在后）
       const aInclude = a.include_in_profit_loss !== false ? 1 : 0
       const bInclude = b.include_in_profit_loss !== false ? 1 : 0
-      return bInclude - aInclude // 降序：true 在前，false 在后
+      if (bInclude !== aInclude) {
+        return bInclude - aInclude
+      }
+
+      // 第二优先级：按拼音排序
+      const collator = new Intl.Collator('zh-CN', {
+        usage: 'sort',
+        sensitivity: 'base',
+        numeric: true,
+      })
+      return collator.compare(a.name, b.name)
     })
 
     return (
