@@ -103,13 +103,13 @@ export function StoreHub({ stores }: StoreHubProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              本月收入
+              总计收入
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">¥0.00</div>
             <p className="text-sm text-muted-foreground mt-1">
-              较上月 +0.0%
+              全部店铺合计
             </p>
           </CardContent>
         </Card>
@@ -118,13 +118,13 @@ export function StoreHub({ stores }: StoreHubProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingDown className="h-4 w-4" />
-              本月支出
+              总计支出
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-red-600">¥0.00</div>
             <p className="text-sm text-muted-foreground mt-1">
-              较上月 +0.0%
+              全部店铺合计
             </p>
           </CardContent>
         </Card>
