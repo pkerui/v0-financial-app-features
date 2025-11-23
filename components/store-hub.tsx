@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import {
   Store as StoreIcon,
   TrendingUp,
@@ -18,11 +19,15 @@ import {
   MapPin,
   Phone,
   User,
+  Calendar,
 } from 'lucide-react'
 import Link from 'next/link'
+import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
 
 interface StoreHubProps {
   stores: Store[]
+  initialStartDate?: string
+  initialEndDate?: string
 }
 
 const statusColors: Record<string, string> = {
@@ -39,11 +44,23 @@ const statusLabels: Record<string, string> = {
   closed: '已关闭',
 }
 
-export function StoreHub({ stores }: StoreHubProps) {
+export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubProps) {
   const [viewMode, setViewMode] = useState<'overview' | 'management'>('overview')
+
+  // 日期状态
+  const [startDate, setStartDate] = useState(initialStartDate || getFirstDayOfMonth())
+  const [endDate, setEndDate] = useState(initialEndDate || getToday())
 
   // 统计数据
   const activeStores = stores.filter(s => s.status === 'active')
+
+  // 处理日期变化
+  const handleDateChange = (newStartDate: string, newEndDate: string) => {
+    setStartDate(newStartDate)
+    setEndDate(newEndDate)
+    // TODO: 这里后续需要重新获取数据
+    console.log('Date range changed:', newStartDate, newEndDate)
+  }
 
   // 按城市分组
   const storesByCity = stores.reduce((acc, store) => {
@@ -58,28 +75,50 @@ export function StoreHub({ stores }: StoreHubProps) {
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <StoreIcon className="h-8 w-8" />
-            店铺管理中心
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            管理和查看所有店铺的运营数据
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link href="/stores/settings">
-            <Button variant="outline" className="gap-2">
-              <Settings className="h-4 w-4" />
-              管理设置
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+              <StoreIcon className="h-8 w-8" />
+              店铺管理中心
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              管理和查看所有店铺的运营数据
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/stores/settings">
+              <Button variant="outline" className="gap-2">
+                <Settings className="h-4 w-4" />
+                管理设置
+              </Button>
+            </Link>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              新增店铺
             </Button>
-          </Link>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            新增店铺
-          </Button>
+          </div>
         </div>
+
+        {/* 日期选择器 */}
+        <Card className="bg-muted/50">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>数据时间范围：</span>
+              </div>
+              <DateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                onDateChange={handleDateChange}
+              />
+              <div className="text-sm text-muted-foreground">
+                {startDate} 至 {endDate}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 总览统计卡片 */}

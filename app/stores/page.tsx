@@ -1,8 +1,13 @@
 import { Suspense } from 'react'
 import { getStores } from '@/lib/api/stores'
 import { StoreHub } from '@/components/store-hub'
+import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
 
-export default async function StoresPage() {
+type PageProps = {
+  searchParams: Promise<{ startDate?: string; endDate?: string }>
+}
+
+export default async function StoresPage({ searchParams }: PageProps) {
   const { data: stores, error } = await getStores()
 
   if (error) {
@@ -16,11 +21,18 @@ export default async function StoresPage() {
     )
   }
 
+  // 验证日期范围
+  const dateValidation = await validateDateRangeFromParams(searchParams)
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
         <Suspense fallback={<div>加载中...</div>}>
-          <StoreHub stores={stores || []} />
+          <StoreHub
+            stores={stores || []}
+            initialStartDate={dateValidation.startDate}
+            initialEndDate={dateValidation.endDate}
+          />
         </Suspense>
       </div>
     </div>
