@@ -39,18 +39,11 @@ const statusLabels: Record<string, string> = {
   closed: '已关闭',
 }
 
-const typeLabels: Record<string, string> = {
-  direct: '直营',
-  franchise: '加盟',
-}
-
 export function StoreHub({ stores }: StoreHubProps) {
   const [viewMode, setViewMode] = useState<'overview' | 'management'>('overview')
 
   // 统计数据
   const activeStores = stores.filter(s => s.status === 'active')
-  const directStores = stores.filter(s => s.type === 'direct')
-  const franchiseStores = stores.filter(s => s.type === 'franchise')
 
   // 按城市分组
   const storesByCity = stores.reduce((acc, store) => {
@@ -90,7 +83,7 @@ export function StoreHub({ stores }: StoreHubProps) {
       </div>
 
       {/* 总览统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -110,13 +103,13 @@ export function StoreHub({ stores }: StoreHubProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              直营店铺
+              本月收入
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{directStores.length}</div>
+            <div className="text-3xl font-bold text-green-600">¥0.00</div>
             <p className="text-sm text-muted-foreground mt-1">
-              占比 {stores.length > 0 ? ((directStores.length / stores.length) * 100).toFixed(0) : 0}%
+              较上月 +0.0%
             </p>
           </CardContent>
         </Card>
@@ -125,30 +118,13 @@ export function StoreHub({ stores }: StoreHubProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingDown className="h-4 w-4" />
-              加盟店铺
+              本月支出
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{franchiseStores.length}</div>
+            <div className="text-3xl font-bold text-red-600">¥0.00</div>
             <p className="text-sm text-muted-foreground mt-1">
-              占比 {stores.length > 0 ? ((franchiseStores.length / stores.length) * 100).toFixed(0) : 0}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              覆盖城市
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">
-              {Object.keys(storesByCity).length}
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {Object.keys(storesByCity).filter(c => c !== '未分类').length} 个城市
+              较上月 +0.0%
             </p>
           </CardContent>
         </Card>
@@ -200,14 +176,12 @@ export function StoreHub({ stores }: StoreHubProps) {
                       <CardContent className="space-y-3">
                         {/* 店铺信息 */}
                         <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Badge variant="secondary" className="text-xs">
-                              {typeLabels[store.type || 'direct']}
-                            </Badge>
-                            {store.city && (
+                          {store.city && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5" />
                               <span className="text-xs">{store.city}</span>
-                            )}
-                          </div>
+                            </div>
+                          )}
 
                           {store.manager_name && (
                             <div className="flex items-center gap-2 text-muted-foreground">
