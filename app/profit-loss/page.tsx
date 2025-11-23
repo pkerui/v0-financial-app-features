@@ -114,8 +114,9 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="outline" size="icon">
+              <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
+                回到总览
               </Button>
             </Link>
             <div>

@@ -502,8 +502,9 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/dashboard">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
+            回到总览
           </Button>
         </Link>
         <div>

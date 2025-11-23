@@ -152,11 +152,18 @@ export function ProfitLossDetailContent({
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/profit-loss">
-              <Button variant="outline" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/profit-loss">
+                <Button variant="outline" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button variant="outline" size="sm">
+                  回到总览
+                </Button>
+              </Link>
+            </div>
             <div>
               <h1 className="text-3xl font-bold">{detailNames[detailType]}</h1>
               <p className="text-muted-foreground">
