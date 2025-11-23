@@ -1,6 +1,7 @@
 import { VoiceEntryInterface } from '@/components/voice-entry-interface'
 import { getTransactionCategories } from '@/lib/api/transaction-categories'
 import { getFinancialSettings } from '@/lib/api/financial-settings'
+import { getActiveStores } from '@/lib/api/stores'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
@@ -23,12 +24,16 @@ export default async function VoiceEntryPage() {
   // 获取财务设置
   const { data: financialSettings } = await getFinancialSettings()
 
+  // 获取活跃店铺列表
+  const { data: stores } = await getActiveStores()
+
   return (
     <main className="min-h-screen bg-background">
       <VoiceEntryInterface
         incomeCategories={incomeCategories || []}
         expenseCategories={expenseCategories || []}
         initialBalanceDate={financialSettings?.initial_balance_date}
+        stores={stores || []}
       />
     </main>
   )

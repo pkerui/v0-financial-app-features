@@ -22,6 +22,8 @@ import { useRouter } from 'next/navigation'
 import { getToday } from '@/lib/utils/date'
 import { getCategoryMapping, activityNames } from '@/lib/cash-flow-config'
 import type { TransactionCategory } from '@/lib/api/transaction-categories'
+import type { Store } from '@/lib/api/stores'
+import { StoreSelector } from '@/components/store-selector'
 
 type ValidationError = {
   field: string
@@ -33,15 +35,17 @@ type TransactionWithId = ParsedTransaction & {
   isEditing?: boolean
   input_method: 'voice' | 'manual'
   validationErrors?: ValidationError[]
+  store_id?: string
 }
 
 type VoiceEntryInterfaceProps = {
   incomeCategories: TransactionCategory[]
   expenseCategories: TransactionCategory[]
   initialBalanceDate?: string
+  stores: Store[]
 }
 
-export function VoiceEntryInterface({ incomeCategories, expenseCategories, initialBalanceDate }: VoiceEntryInterfaceProps) {
+export function VoiceEntryInterface({ incomeCategories, expenseCategories, initialBalanceDate, stores }: VoiceEntryInterfaceProps) {
   const router = useRouter()
   const [inputMode, setInputMode] = useState<'voice' | 'manual'>('voice')
   const [isRecording, setIsRecording] = useState(false)
@@ -51,6 +55,15 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
   const [isSaving, setIsSaving] = useState(false)
   const stopRecognitionRef = useRef<(() => void) | null>(null)
   const [useTencentASR, setUseTencentASR] = useState(true) // 默认使用腾讯云
+
+  // 店铺选择状态
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(() => {
+    // 如果只有一个店铺，默认选中
+    if (stores.length === 1) {
+      return stores[0].id
+    }
+    return ''
+  })
 
   // 手动输入表单状态
   const [manualInputMode, setManualInputMode] = useState<'form' | 'text'>('text')
@@ -430,6 +443,12 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
       return
     }
 
+    // 如果有多个店铺，必须选择店铺
+    if (stores.length > 0 && !selectedStoreId) {
+      setErrorMessage('请选择店铺')
+      return
+    }
+
     // 检查是否有验证错误
     const transactionsWithErrors = parsedTransactions.filter(
       t => t.validationErrors && t.validationErrors.length > 0
@@ -455,6 +474,7 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
           description: transaction.description,
           date: transaction.date,
           input_method: transaction.input_method,
+          store_id: selectedStoreId || undefined,
         })
 
         if (result.error) {
@@ -521,6 +541,20 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
             <CardDescription>选择输入方式</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* 店铺选择器 */}
+            {stores.length > 0 && (
+              <div className="mb-6">
+                <StoreSelector
+                  stores={stores}
+                  value={selectedStoreId}
+                  onChange={setSelectedStoreId}
+                  label="所属店铺"
+                  placeholder="请选择店铺"
+                  required={true}
+                />
+              </div>
+            )}
+
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'voice' | 'manual')}>
               <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="voice">语音输入</TabsTrigger>
