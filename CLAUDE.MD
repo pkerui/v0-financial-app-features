@@ -259,6 +259,199 @@ git commit -m "type(scope): message"
 
 ---
 
+## 🗄️ Database Sync Protocol (Project-Specific)
+
+### Critical Rule: Real-time Database Synchronization
+
+**ALL user-facing data changes MUST be immediately written to the database.**
+
+This is a **production financial system** - data consistency is paramount.
+
+### What Must Sync Immediately:
+
+✅ **Transaction Records** (`lib/api/transactions.ts`)
+- Creating transactions → Write to `transactions` table
+- Updating transactions → Update database immediately
+- Deleting transactions → Remove from database
+
+✅ **Category Management** (`lib/api/transaction-categories.ts`)
+- Adding categories → Insert into `transaction_categories`
+- Updating categories → Update database + cascade to transactions
+- Deleting categories → Remove from database (with protection)
+- Merging categories → Update all related transactions
+
+✅ **Financial Settings** (`lib/api/financial-settings.ts`)
+- Updating initial balance → Write to `financial_settings`
+- Changing dates → Update database immediately
+
+### Data Flow Architecture:
+
+```
+User Action (Frontend)
+    ↓
+Server Action (lib/api/*.ts)
+    ↓
+Validation (Zod Schema + Business Logic)
+    ↓
+Permission Check (User Auth + Company ID)
+    ↓
+Database Write (Supabase Client)
+    ↓
+RLS Policy Verification (Database Layer)
+    ↓
+Cache Invalidation (revalidatePath)
+    ↓
+UI Update ✅
+```
+
+### Priority Hierarchy:
+
+1. **Database is the source of truth** (highest priority)
+2. Code configuration files are fallback only (compatibility)
+3. Never rely solely on client-side state
+
+### Example: Category Classification
+
+```typescript
+// ✅ CORRECT: Always query database first
+const { data: categoryData } = await supabase
+  .from('transaction_categories')
+  .select('id, cash_flow_activity')
+  .eq('name', categoryName)
+  .single()
+
+if (categoryData) {
+  // Use database value ✅
+  cash_flow_activity = categoryData.cash_flow_activity
+} else {
+  // Fallback to config file (for old data only)
+  cash_flow_activity = getCategoryMapping(...)?.activity || 'operating'
+}
+```
+
+```typescript
+// ❌ WRONG: Never use only config file
+const cash_flow_activity = getCategoryMapping(...)?.activity
+```
+
+### Cascade Update Requirements:
+
+When modifying categories:
+- ✅ Update `transaction_categories` table
+- ✅ CASCADE update all related `transactions` records
+- ✅ Revalidate all affected pages
+
+Example:
+```typescript
+// Update category name → Must update all transactions
+await supabase
+  .from('transactions')
+  .update({ category: newName })
+  .eq('category', oldName)
+```
+
+### Page Revalidation Protocol:
+
+After ANY data modification, revalidate affected routes:
+
+```typescript
+revalidatePath('/dashboard')      // Always
+revalidatePath('/transactions')   // For transaction changes
+revalidatePath('/cash-flow')      // For cash flow changes
+revalidatePath('/profit-loss')    // For P&L changes
+revalidatePath('/settings')       // For settings changes
+```
+
+### Never Use Manual Migrations For:
+
+❌ User-initiated changes (use UI + API)
+❌ Category updates (use Settings page)
+❌ Transaction corrections (use Edit feature)
+
+### Only Use Migrations For:
+
+✅ Schema changes (new columns, tables)
+✅ System-wide fixes (affecting all companies)
+✅ Database function updates
+✅ RLS policy changes
+✅ Default data initialization
+
+### Verification Checklist:
+
+Before deploying any data-related feature:
+
+- [ ] Data writes to database immediately?
+- [ ] Database is queried first (not config file)?
+- [ ] Cascade updates implemented?
+- [ ] RLS policies allow the operation?
+- [ ] All affected pages revalidated?
+- [ ] Error handling covers all cases?
+- [ ] User sees updated data immediately?
+
+### Testing Database Sync:
+
+```typescript
+// Create API endpoint for verification
+// Example: /app/api/debug/categories/route.ts
+
+export async function GET() {
+  const { data } = await supabase
+    .from('transaction_categories')
+    .select('*')
+    .eq('name', 'Test Category')
+
+  return NextResponse.json({
+    database_value: data,
+    timestamp: new Date()
+  })
+}
+```
+
+### Common Anti-Patterns to Avoid:
+
+❌ Storing critical data only in localStorage
+❌ Relying on config files as primary source
+❌ Modifying database manually without migration
+❌ Forgetting to revalidate after updates
+❌ Not cascading updates to related records
+
+### Financial Data Integrity Rules:
+
+1. **Transaction Date Validation**
+   - Never allow dates before initial balance date
+   - Validate in both frontend and backend
+
+2. **Category Consistency**
+   - Every transaction must have valid category
+   - Category changes cascade to transactions
+
+3. **Balance Calculations**
+   - Always calculate from database
+   - Never trust client-side calculations
+   - Verify against initial balance
+
+4. **Audit Trail**
+   - Track `created_at`, `updated_at`
+   - Record `created_by`, `updated_by`
+   - Never delete, mark as inactive if needed
+
+### Debug Tools:
+
+Created debug endpoints:
+- `/api/debug/categories` - Check category status
+- Use these to verify database state after changes
+
+### Remember:
+
+**This is a FINANCIAL SYSTEM.** Data accuracy is not optional.
+
+- Every yuan must be accounted for
+- Every transaction must be traceable
+- Database is always the authority
+- Real-time sync is mandatory, not optional
+
+---
+
 ## Remember
 
 You're not just writing code, you're building products that solve real problems for real users. Every decision should consider the full lifecycle from development to deployment to maintenance.
