@@ -4,6 +4,43 @@
 
 **Never code without approval.** Ask "Should I proceed?" → Wait for "yes" → Then implement. No exceptions.
 
+## 🛡️ Protected Code Regions (受保护的代码区域)
+
+**以下模块已完成里程碑，未经用户明确同意，禁止修改：**
+
+### v1.0.0-store-feature (分店功能) - 2024-11-26
+
+**受保护文件列表：**
+- `app/stores/` - 店铺页面
+- `app/dashboard/page.tsx` - 仪表盘（店铺相关逻辑）
+- `app/income/page.tsx` - 收入页面
+- `app/expense/page.tsx` - 支出页面
+- `app/transactions/page.tsx` - 交易页面
+- `app/cash-flow/` - 现金流量表相关
+- `app/profit-loss/` - 利润表相关
+- `app/voice-entry/page.tsx` - 语音录入
+- `app/settings/page.tsx` - 设置页面
+- `components/store-hub.tsx` - 店铺中心
+- `components/multi-store-selector.tsx` - 多店铺选择器
+- `components/dashboard-content.tsx` - 仪表盘内容
+- `components/transactions-table*.tsx` - 交易表格组件
+- `components/profit-loss-*.tsx` - 利润表组件
+- `components/cash-flow-*.tsx` - 现金流组件
+- `components/voice-entry-interface.tsx` - 语音录入组件
+- `lib/utils/store-mode.ts` - 店铺模式工具
+- `lib/services/profit-loss.ts` - 利润计算服务
+- `supabase/migrations/016-019` - 店铺相关迁移
+
+**如需修改上述文件，必须：**
+1. 明确告知用户要修改的文件
+2. 说明修改原因
+3. 获得用户明确的"同意"或"批准"后方可修改
+
+**可以自由修改的区域：**
+- 新增的店铺管理功能
+- 全局总览功能
+- 其他新功能模块
+
 ## 🔍 Pre-Implementation Analysis (必须执行)
 
 ### 1. 方案与框架要求
