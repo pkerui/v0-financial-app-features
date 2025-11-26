@@ -5,8 +5,13 @@ import { getActiveStores } from '@/lib/api/stores'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
-export default async function VoiceEntryPage() {
+type PageProps = {
+  searchParams: Promise<{ store?: string }>
+}
+
+export default async function VoiceEntryPage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const params = await searchParams
 
   // 获取当前用户
   const {
@@ -34,6 +39,7 @@ export default async function VoiceEntryPage() {
         expenseCategories={expenseCategories || []}
         initialBalanceDate={financialSettings?.initial_balance_date}
         stores={stores || []}
+        defaultStoreId={params.store}
       />
     </main>
   )

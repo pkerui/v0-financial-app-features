@@ -67,6 +67,14 @@ type Transaction = {
   input_method: 'voice' | 'text' | 'manual' | null
   payment_method?: string | null
   cash_flow_activity?: 'operating' | 'investing' | 'financing' | null
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
+}
+
+type TransactionCategory = {
+  id: string
+  name: string
+  cash_flow_activity: 'operating' | 'investing' | 'financing'
+  transaction_nature: 'operating' | 'non_operating' | 'income_tax' | null
 }
 
 type TransactionsTableProps = {
@@ -75,6 +83,7 @@ type TransactionsTableProps = {
   initialStartDate?: string
   initialEndDate?: string
   hideDateControl?: boolean
+  categories: TransactionCategory[]
 }
 
 const categoryNames: Record<string, string> = {
@@ -115,16 +124,13 @@ const categoryNamesToCodes: Record<string, string> = {
   '其他支出': 'other_expense',
 }
 
-const incomeCategories = ['room_revenue', 'deposit', 'extra_service', 'other_income']
-const expenseCategories = ['utilities', 'maintenance', 'cleaning', 'supplies', 'labor', 'other_expense']
-
 // 获取所有分类的中文名称（用于显示已有的中文分类）
 const allCategoryNames = [
   '房费收入', '押金收入', '额外服务', '其他收入',
   '水电费', '维修费', '清洁费', '采购费', '人工费', '其他支出'
 ]
 
-export function TransactionsTable({ transactions, type, initialStartDate, initialEndDate, hideDateControl }: TransactionsTableProps) {
+export function TransactionsTable({ transactions, type, initialStartDate, initialEndDate, hideDateControl, categories }: TransactionsTableProps) {
   const router = useRouter()
 
   // 使用服务端传入的日期
@@ -145,7 +151,8 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedActivities, setSelectedActivities] = useState<string[]>([])
-  const [sortField, setSortField] = useState<'date' | 'amount'>('date')
+  const [selectedNatures, setSelectedNatures] = useState<string[]>([])
+  const [sortField, setSortField] = useState<'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature'>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // 使用统一的日期导航Hook
@@ -160,6 +167,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
     date: '',
     payment_method: '',
     cash_flow_activity: '',
+    transaction_nature: '', // 添加交易性质字段（只读显示）
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -178,24 +186,40 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
       if (endDate && t.date > endDate) return false
       // 现金流活动筛选 - 多选：如果有选中的活动，检查交易是否在其中
       if (selectedActivities.length > 0 && !selectedActivities.includes(t.cash_flow_activity || '')) return false
+      // 交易性质筛选 - 多选
+      if (selectedNatures.length > 0 && !selectedNatures.includes(t.transaction_nature || '')) return false
       return true
     })
     .sort((a, b) => {
       const multiplier = sortOrder === 'asc' ? 1 : -1
       if (sortField === 'date') {
         return multiplier * (new Date(a.date).getTime() - new Date(b.date).getTime())
-      } else {
+      } else if (sortField === 'amount') {
         return multiplier * (a.amount - b.amount)
+      } else if (sortField === 'category') {
+        return multiplier * (a.category || '').localeCompare(b.category || '')
+      } else if (sortField === 'cash_flow_activity') {
+        const activityOrder = { operating: 1, investing: 2, financing: 3 }
+        const aOrder = activityOrder[a.cash_flow_activity as keyof typeof activityOrder] || 4
+        const bOrder = activityOrder[b.cash_flow_activity as keyof typeof activityOrder] || 4
+        return multiplier * (aOrder - bOrder)
+      } else if (sortField === 'transaction_nature') {
+        const natureOrder = { operating: 1, non_operating: 2, income_tax: 3 }
+        const aOrder = natureOrder[a.transaction_nature as keyof typeof natureOrder] || 4
+        const bOrder = natureOrder[b.transaction_nature as keyof typeof natureOrder] || 4
+        return multiplier * (aOrder - bOrder)
+      } else {
+        return 0
       }
     })
 
   // 计算总计
   const total = filteredTransactions.reduce((sum, t) => sum + t.amount, 0)
 
-  // 获取唯一分类
-  const categories = Array.from(new Set(transactions.map(t => t.category)))
+  // 获取唯一分类（用于筛选）
+  const uniqueCategories = Array.from(new Set(transactions.map(t => t.category)))
 
-  const handleSort = (field: 'date' | 'amount') => {
+  const handleSort = (field: 'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
@@ -204,25 +228,19 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
     }
   }
 
-  // 录入方式中文映射
-  const inputMethodNames: Record<string, string> = {
-    'voice': '语音录入',
-    'text': '文本录入',
-    'manual': '手动录入',
-  }
-
   const exportToCSV = () => {
-    const headers = ['日期', '分类', '金额', '描述', '录入方式']
+    const headers = ['日期', '分类', '金额', '现金流活动', '交易性质', '描述']
     const rows = filteredTransactions.map(t => [
       new Date(t.date).toLocaleDateString('zh-CN'),
       categoryNames[t.category] || t.category,
       t.amount.toFixed(2),
+      t.cash_flow_activity === 'operating' ? '经营活动' : t.cash_flow_activity === 'investing' ? '投资活动' : t.cash_flow_activity === 'financing' ? '筹资活动' : '',
+      t.transaction_nature === 'operating' ? '营业内' : t.transaction_nature === 'non_operating' ? '营业外' : t.transaction_nature === 'income_tax' ? '所得税' : '',
       t.description || '',
-      inputMethodNames[t.input_method || ''] || t.input_method || '',
     ])
 
     // 添加合计行
-    const totalRow = ['合计', '', total.toFixed(2), '', '']
+    const totalRow = ['合计', '', total.toFixed(2), '', '', '']
 
     const csvContent = [
       headers.join(','),
@@ -241,7 +259,10 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
   const handleEdit = (transaction: Transaction) => {
     console.log('编辑交易记录:', transaction)
     console.log('分类值:', transaction.category)
-    console.log('可用分类:', type === 'income' ? incomeCategories : expenseCategories)
+    console.log('数据库分类:', categories)
+
+    // 从数据库分类中查找当前分类的最新信息
+    const currentCategory = categories.find(cat => cat.name === transaction.category)
 
     setEditingTransaction(transaction)
     setEditForm({
@@ -250,7 +271,9 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
       description: transaction.description || '',
       date: transaction.date,
       payment_method: transaction.payment_method || '',
-      cash_flow_activity: transaction.cash_flow_activity || '',
+      // 优先使用数据库中的最新值，如果找不到则使用交易记录中的值
+      cash_flow_activity: currentCategory?.cash_flow_activity || transaction.cash_flow_activity || '',
+      transaction_nature: currentCategory?.transaction_nature || transaction.transaction_nature || '',
     })
   }
 
@@ -317,10 +340,11 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
     setSelectedCategories([])
     handleDateChange(getFirstDayOfMonth(), getToday())
     setSelectedActivities([])
+    setSelectedNatures([])
     setSearchTerm('')
   }
 
-  const hasActiveFilters = selectedCategories.length > 0 || selectedActivities.length > 0 || searchTerm !== ''
+  const hasActiveFilters = selectedCategories.length > 0 || selectedActivities.length > 0 || selectedNatures.length > 0 || searchTerm !== ''
 
   return (
     <>
@@ -402,73 +426,83 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                     </div>
                   </TableHead>
 
-                  {/* 分类列 - 包含分类筛选（多选） */}
+                  {/* 分类列 - 包含分类筛选和排序 */}
                   <TableHead>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" className="h-8 px-2 gap-1">
-                          分类
-                          {selectedCategories.length > 0 && (
-                            <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
-                              {selectedCategories.length}
-                            </Badge>
-                          )}
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-56" align="start">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-semibold">筛选分类</Label>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setSelectedCategories(categories)}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setSelectedCategories([])}
-                              >
-                                反选
-                              </Button>
+                    <div className="flex items-center gap-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" className="h-8 px-2 gap-1">
+                            分类
+                            {selectedCategories.length > 0 && (
+                              <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                                {selectedCategories.length}
+                              </Badge>
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56" align="start">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-semibold">筛选分类</Label>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedCategories(uniqueCategories)}
+                                >
+                                  全选
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedCategories([])}
+                                >
+                                  反选
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {uniqueCategories.map(cat => (
+                                <div key={cat} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`category-${cat}`}
+                                    checked={selectedCategories.includes(cat)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedCategories([...selectedCategories, cat])
+                                      } else {
+                                        setSelectedCategories(selectedCategories.filter(c => c !== cat))
+                                      }
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`category-${cat}`}
+                                    className="text-sm cursor-pointer flex-1"
+                                  >
+                                    {categoryNames[cat] || cat}
+                                  </label>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {categories.map(cat => (
-                              <div key={cat} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`category-${cat}`}
-                                  checked={selectedCategories.includes(cat)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedCategories([...selectedCategories, cat])
-                                    } else {
-                                      setSelectedCategories(selectedCategories.filter(c => c !== cat))
-                                    }
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`category-${cat}`}
-                                  className="text-sm cursor-pointer flex-1"
-                                >
-                                  {categoryNames[cat] || cat}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleSort('category')}
+                      >
+                        <ArrowUpDown className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </TableHead>
 
                   {/* 金额列 */}
-                  <TableHead className="w-32">
+                  <TableHead>
                     <Button
                       variant="ghost"
                       onClick={() => handleSort('amount')}
@@ -479,79 +513,168 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                     </Button>
                   </TableHead>
 
-                  <TableHead>描述</TableHead>
-
-                  {/* 现金流活动列 - 包含活动筛选（多选） */}
-                  <TableHead className="w-28">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" className="h-8 px-2 gap-1">
-                          现金流活动
-                          {selectedActivities.length > 0 && (
-                            <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
-                              {selectedActivities.length}
-                            </Badge>
-                          )}
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-52" align="start">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-semibold">筛选活动</Label>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setSelectedActivities(['operating', 'investing', 'financing'])}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setSelectedActivities([])}
-                              >
-                                反选
-                              </Button>
+                  {/* 现金流活动列 - 包含活动筛选和排序 */}
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" className="h-8 px-2 gap-1">
+                            现金流活动
+                            {selectedActivities.length > 0 && (
+                              <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                                {selectedActivities.length}
+                              </Badge>
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-52" align="start">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-semibold">筛选活动</Label>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedActivities(['operating', 'investing', 'financing'])}
+                                >
+                                  全选
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedActivities([])}
+                                >
+                                  反选
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {[
+                                { value: 'operating', label: '经营活动' },
+                                { value: 'investing', label: '投资活动' },
+                                { value: 'financing', label: '筹资活动' },
+                              ].map(activity => (
+                                <div key={activity.value} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`activity-${activity.value}`}
+                                    checked={selectedActivities.includes(activity.value)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedActivities([...selectedActivities, activity.value])
+                                      } else {
+                                        setSelectedActivities(selectedActivities.filter(a => a !== activity.value))
+                                      }
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`activity-${activity.value}`}
+                                    className="text-sm cursor-pointer flex-1"
+                                  >
+                                    {activity.label}
+                                  </label>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            {[
-                              { value: 'operating', label: '经营活动' },
-                              { value: 'investing', label: '投资活动' },
-                              { value: 'financing', label: '筹资活动' },
-                            ].map(activity => (
-                              <div key={activity.value} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`activity-${activity.value}`}
-                                  checked={selectedActivities.includes(activity.value)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedActivities([...selectedActivities, activity.value])
-                                    } else {
-                                      setSelectedActivities(selectedActivities.filter(a => a !== activity.value))
-                                    }
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`activity-${activity.value}`}
-                                  className="text-sm cursor-pointer flex-1"
-                                >
-                                  {activity.label}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleSort('cash_flow_activity')}
+                      >
+                        <ArrowUpDown className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </TableHead>
 
-                  <TableHead className="w-24">录入方式</TableHead>
-                  <TableHead className="w-24 text-right">操作</TableHead>
+                  {/* 交易性质列 - 包含筛选和排序 */}
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" className="h-8 px-2 gap-1">
+                            交易性质
+                            {selectedNatures.length > 0 && (
+                              <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                                {selectedNatures.length}
+                              </Badge>
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48" align="start">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-semibold">筛选性质</Label>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedNatures(['operating', 'non_operating', 'income_tax'])}
+                                >
+                                  全选
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setSelectedNatures([])}
+                                >
+                                  反选
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {[
+                                { value: 'operating', label: '营业内' },
+                                { value: 'non_operating', label: '营业外' },
+                                { value: 'income_tax', label: '所得税' },
+                              ].map(nature => (
+                                <div key={nature.value} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`nature-${nature.value}`}
+                                    checked={selectedNatures.includes(nature.value)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedNatures([...selectedNatures, nature.value])
+                                      } else {
+                                        setSelectedNatures(selectedNatures.filter(n => n !== nature.value))
+                                      }
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`nature-${nature.value}`}
+                                    className="text-sm cursor-pointer flex-1"
+                                  >
+                                    {nature.label}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleSort('transaction_nature')}
+                      >
+                        <ArrowUpDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableHead>
+
+                  {/* 描述列 */}
+                  <TableHead>描述</TableHead>
+
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -581,19 +704,24 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                           {type === 'income' ? '+' : '-'}¥{transaction.amount.toFixed(2)}
                         </span>
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {transaction.description || '-'}
-                      </TableCell>
                       <TableCell>
                         <ActivityBadge activity={transaction.cash_flow_activity} />
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-muted-foreground">
-                          {transaction.input_method === 'voice' && '语音'}
-                          {transaction.input_method === 'manual' && '手动'}
-                          {transaction.input_method === 'text' && '文本'}
-                          {!transaction.input_method && '-'}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          transaction.transaction_nature === 'non_operating'
+                            ? 'bg-amber-100 text-amber-800'
+                            : transaction.transaction_nature === 'income_tax'
+                            ? 'bg-purple-100 text-purple-800'
+                            : transaction.transaction_nature === 'operating'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {transaction.transaction_nature === 'non_operating' ? '营业外' : transaction.transaction_nature === 'income_tax' ? '所得税' : transaction.transaction_nature === 'operating' ? '营业内' : '-'}
                         </span>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {transaction.description || '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -621,13 +749,13 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-right font-semibold">
+                  <TableCell colSpan={2} className="text-right font-semibold">
                     合计
                   </TableCell>
                   <TableCell className="font-bold text-lg">
                     ¥{total.toFixed(2)}
                   </TableCell>
-                  <TableCell />
+                  <TableCell colSpan={4} />
                 </TableRow>
               </TableFooter>
             </Table>
@@ -651,19 +779,27 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                 value={editForm.category}
                 onValueChange={(v) => {
                   console.log('选择了新分类:', v)
-                  setEditForm({...editForm, category: v})
+                  // 从数据库分类信息中查找对应的属性
+                  const selectedCategory = categories.find(cat => cat.name === v)
+                  if (selectedCategory) {
+                    setEditForm({
+                      ...editForm,
+                      category: v,
+                      cash_flow_activity: selectedCategory.cash_flow_activity,
+                      transaction_nature: selectedCategory.transaction_nature || '',
+                    })
+                  } else {
+                    setEditForm({...editForm, category: v})
+                  }
                 }}
               >
                 <SelectTrigger id="edit-category">
                   <SelectValue placeholder="选择分类" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(type === 'income'
-                    ? ['房费收入', '押金收入', '额外服务', '其他收入']
-                    : ['水电费', '维修费', '清洁费', '采购费', '人工费', '其他支出']
-                  ).map(cat => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.name}>
+                      {cat.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -714,6 +850,25 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 默认根据分类自动分配，可手动调整
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="edit-transaction-nature">交易性质</Label>
+              <div className="flex items-center h-10 px-3 py-2 border rounded-md bg-muted/50">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                  editForm.transaction_nature === 'non_operating'
+                    ? 'bg-amber-100 text-amber-800'
+                    : editForm.transaction_nature === 'income_tax'
+                    ? 'bg-purple-100 text-purple-800'
+                    : editForm.transaction_nature === 'operating'
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {editForm.transaction_nature === 'non_operating' ? '营业外' : editForm.transaction_nature === 'income_tax' ? '所得税' : editForm.transaction_nature === 'operating' ? '营业内' : '-'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                由分类自动决定，修改分类后自动更新
               </p>
             </div>
           </div>

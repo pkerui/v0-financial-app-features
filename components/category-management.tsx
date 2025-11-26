@@ -64,11 +64,13 @@ const activityColors = {
 const natureLabels = {
   operating: '营业内',
   non_operating: '营业外',
+  income_tax: '所得税',
 }
 
 const natureColors = {
   operating: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
   non_operating: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+  income_tax: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
 }
 
 export function CategoryManagement({ incomeCategories, expenseCategories }: CategoryManagementProps) {
@@ -90,7 +92,7 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
     name: '',
     type: 'income' as 'income' | 'expense',
     cash_flow_activity: 'operating' as 'operating' | 'investing' | 'financing',
-    transaction_nature: 'operating' as 'operating' | 'non_operating',
+    transaction_nature: 'operating' as 'operating' | 'non_operating' | 'income_tax',
     include_in_profit_loss: true,
   })
 
@@ -507,11 +509,13 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
                   <SelectContent>
                     <SelectItem value="operating">营业内</SelectItem>
                     <SelectItem value="non_operating">营业外</SelectItem>
+                    <SelectItem value="income_tax">所得税</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   营业内：日常经营相关的收支（如房租收入、水电费）<br/>
-                  营业外：非日常经营的收支（如政府补助、所得税费用）
+                  营业外：非日常经营的收支（如政府补助、资产处置收益）<br/>
+                  所得税：所得税费用（在利润表中单独列示）
                 </p>
               </div>
             )}

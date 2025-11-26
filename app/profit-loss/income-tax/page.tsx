@@ -1,16 +1,14 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CashFlowSummaryDetailClientWrapper } from '@/components/cash-flow-summary-detail-client-wrapper'
+import { ProfitLossDetailClientWrapper } from '@/components/profit-loss-detail-client-wrapper'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
-import { calculateBeginningBalance } from '@/lib/services/cash-flow'
-import { getFinancialSettings } from '@/lib/api/financial-settings'
 import { getStoreModeServer } from '@/lib/utils/store-mode'
 
 type PageProps = {
   searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
 }
 
-export default async function TotalInflowPage({ searchParams }: PageProps) {
+export default async function ProfitLossIncomeTaxPage({ searchParams }: PageProps) {
   const supabase = await createClient()
 
   const {
@@ -56,7 +54,9 @@ export default async function TotalInflowPage({ searchParams }: PageProps) {
     .select(`
       *,
       transaction_categories!category_id (
-        cash_flow_activity
+        cash_flow_activity,
+        include_in_profit_loss,
+        transaction_nature
       )
     `)
     .eq('company_id', profile.company_id)
@@ -72,50 +72,16 @@ export default async function TotalInflowPage({ searchParams }: PageProps) {
 
   const flatTransactions = allTransactions?.map(t => ({
     ...t,
-    cash_flow_activity: t.transaction_categories?.cash_flow_activity
+    cash_flow_activity: t.transaction_categories?.cash_flow_activity,
+    include_in_profit_loss: t.transaction_categories?.include_in_profit_loss,
+    transaction_nature: t.transaction_categories?.transaction_nature
   })) || []
 
-  // 获取期初余额
-  const { data: financialSettings } = await getFinancialSettings()
-  let beginningBalance = 0
-  if (financialSettings) {
-    // 获取所有交易用于计算期初余额
-    let balanceQuery = supabase
-      .from('transactions')
-      .select(`
-        *,
-        transaction_categories!category_id (
-          cash_flow_activity
-        )
-      `)
-      .eq('company_id', profile.company_id)
-
-    // 如果是单店或多店模式，过滤 store_id
-    if (storeIds.length > 0) {
-      balanceQuery = balanceQuery.in('store_id', storeIds)
-    }
-
-    const { data: allTxForBalance } = await balanceQuery.order('date', { ascending: false })
-
-    const allTxFlat = allTxForBalance?.map(t => ({
-      ...t,
-      cash_flow_activity: t.transaction_categories?.cash_flow_activity
-    })) || []
-
-    beginningBalance = calculateBeginningBalance(
-      financialSettings.initial_cash_balance,
-      financialSettings.initial_balance_date,
-      dateValidation.startDate,
-      allTxFlat
-    )
-  }
-
   return (
-    <CashFlowSummaryDetailClientWrapper
-      detailType="total-inflow"
+    <ProfitLossDetailClientWrapper
+      detailType="income_tax"
       allTransactions={flatTransactions}
       dateValidation={dateValidation}
-      beginningBalance={beginningBalance}
       storeId={storeId}
       storeName={storeName}
     />

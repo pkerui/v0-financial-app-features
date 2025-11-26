@@ -1,9 +1,24 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardContent } from '@/components/dashboard-content'
+import { getActiveStores } from '@/lib/api/stores'
 
-export default async function DashboardPage() {
+type PageProps = {
+  searchParams: Promise<{ store?: string; stores?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const params = await searchParams
+
+  // 支持两种模式：
+  // 1. ?store=id - 单店模式（向后兼容）
+  // 2. ?stores=id1,id2,id3 - 多店模式
+  const singleStoreId = params.store
+  const multiStoreIds = params.stores?.split(',').filter(Boolean)
+
+  // 确定选中的店铺ID列表
+  const selectedStoreIds = multiStoreIds || (singleStoreId ? [singleStoreId] : [])
 
   // 获取当前用户
   const {
@@ -34,12 +49,31 @@ export default async function DashboardPage() {
     )
   }
 
-  // 获取所有交易记录
-  const { data: transactions } = await supabase
+  // 获取所有店铺信息
+  const { data: allStores } = await getActiveStores()
+
+  // 获取当前选中的店铺
+  const selectedStores = selectedStoreIds.length > 0
+    ? allStores?.filter(s => selectedStoreIds.includes(s.id)) || []
+    : []
+
+  // 向后兼容：单店模式
+  const currentStore = singleStoreId && !multiStoreIds
+    ? selectedStores[0] || null
+    : null
+
+  // 获取交易记录（根据选中的店铺过滤）
+  let query = supabase
     .from('transactions')
     .select('*')
     .eq('company_id', profile.company_id)
-    .order('date', { ascending: false })
+
+  if (selectedStoreIds.length > 0) {
+    // 多店或单店过滤
+    query = query.in('store_id', selectedStoreIds)
+  }
+
+  const { data: transactions } = await query.order('date', { ascending: false })
 
   // 计算总收入和总支出
   const totalIncome = transactions
@@ -79,6 +113,9 @@ export default async function DashboardPage() {
         thisMonthIncome={thisMonthIncome}
         thisMonthExpense={thisMonthExpense}
         transactions={transactions || []}
+        currentStore={currentStore}
+        allStores={allStores || []}
+        selectedStores={selectedStores}
       />
     </main>
   )

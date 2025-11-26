@@ -4,9 +4,10 @@ import { CashFlowSummaryDetailClientWrapper } from '@/components/cash-flow-summa
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
 import { calculateBeginningBalance } from '@/lib/services/cash-flow'
 import { getFinancialSettings } from '@/lib/api/financial-settings'
+import { getStoreModeServer } from '@/lib/utils/store-mode'
 
 type PageProps = {
-  searchParams: Promise<{ startDate?: string; endDate?: string }>
+  searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
 }
 
 export default async function EndingBalancePage({ searchParams }: PageProps) {
@@ -30,11 +31,27 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
     redirect('/')
   }
 
+  // 检测 store 模式
+  const params = await searchParams
+  const { storeId, storeIds } = getStoreModeServer(params)
+
+  // 获取店铺信息（如果是单店模式）
+  let storeName: string | undefined
+  if (storeId) {
+    const { data: store } = await supabase
+      .from('stores')
+      .select('name')
+      .eq('id', storeId)
+      .eq('company_id', profile.company_id)
+      .single()
+    storeName = store?.name
+  }
+
   // 验证日期范围（包含期初余额日期检查）
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
   // 获取所有交易（使用验证后的日期）
-  const { data: allTransactions } = await supabase
+  let periodQuery = supabase
     .from('transactions')
     .select(`
       *,
@@ -45,7 +62,13 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
     .eq('company_id', profile.company_id)
     .gte('date', dateValidation.startDate)
     .lte('date', dateValidation.endDate)
-    .order('date', { ascending: false })
+
+  // 如果是单店或多店模式，过滤 store_id
+  if (storeIds.length > 0) {
+    periodQuery = periodQuery.in('store_id', storeIds)
+  }
+
+  const { data: allTransactions } = await periodQuery.order('date', { ascending: false })
 
   const flatTransactions = allTransactions?.map(t => ({
     ...t,
@@ -57,7 +80,7 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
   let beginningBalance = 0
   if (financialSettings) {
     // 获取所有交易用于计算期初余额
-    const { data: allTxForBalance } = await supabase
+    let balanceQuery = supabase
       .from('transactions')
       .select(`
         *,
@@ -66,7 +89,13 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
         )
       `)
       .eq('company_id', profile.company_id)
-      .order('date', { ascending: false })
+
+    // 如果是单店或多店模式，过滤 store_id
+    if (storeIds.length > 0) {
+      balanceQuery = balanceQuery.in('store_id', storeIds)
+    }
+
+    const { data: allTxForBalance } = await balanceQuery.order('date', { ascending: false })
 
     const allTxFlat = allTxForBalance?.map(t => ({
       ...t,
@@ -87,6 +116,8 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
       allTransactions={flatTransactions}
       dateValidation={dateValidation}
       beginningBalance={beginningBalance}
+      storeId={storeId}
+      storeName={storeName}
     />
   )
 }

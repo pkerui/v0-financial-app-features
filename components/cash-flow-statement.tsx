@@ -27,6 +27,8 @@ type CashFlowStatementProps = {
   endDate: string
   onDateChange: (startDate: string, endDate: string) => void
   initialBalanceDate?: string
+  storeId?: string
+  storeIds?: string[]
 }
 
 export function CashFlowStatement({
@@ -35,9 +37,24 @@ export function CashFlowStatement({
   startDate,
   endDate,
   onDateChange,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeIds
 }: CashFlowStatementProps) {
   const [showChart, setShowChart] = useState(true)
+
+  // 构建包含 store 参数的 URL
+  const buildDetailUrl = (basePath: string) => {
+    const params = new URLSearchParams()
+    params.set('startDate', startDate)
+    params.set('endDate', endDate)
+    if (storeId) {
+      params.set('store', storeId)
+    } else if (storeIds && storeIds.length > 0) {
+      params.set('stores', storeIds.join(','))
+    }
+    return `${basePath}?${params.toString()}`
+  }
 
   // 导出CSV
   const exportToCSV = () => {
@@ -125,7 +142,7 @@ export function CashFlowStatement({
             </div>
           </div>
           <div>
-            <Link href={`/activity/${activity}?startDate=${startDate}&endDate=${endDate}`}>
+            <Link href={buildDetailUrl(`/activity/${activity}`)}>
               <Button variant="ghost" size="sm" className="gap-2 text-xs h-7">
                 查看明细
                 <ArrowRight className="h-3 w-3" />
@@ -240,7 +257,7 @@ export function CashFlowStatement({
           <CardContent className="pt-6">
             <div className="flex items-start justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">总流入</div>
-              <Link href={`/cash-flow/total-inflow?startDate=${startDate}&endDate=${endDate}`}>
+              <Link href={buildDetailUrl('/cash-flow/total-inflow')}>
                 <Button variant="ghost" size="sm" className="gap-1 h-6 text-xs -mt-1 -mr-2">
                   查看明细
                   <ArrowRight className="h-3 w-3" />
@@ -256,7 +273,7 @@ export function CashFlowStatement({
           <CardContent className="pt-6">
             <div className="flex items-start justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">总流出</div>
-              <Link href={`/cash-flow/total-outflow?startDate=${startDate}&endDate=${endDate}`}>
+              <Link href={buildDetailUrl('/cash-flow/total-outflow')}>
                 <Button variant="ghost" size="sm" className="gap-1 h-6 text-xs -mt-1 -mr-2">
                   查看明细
                   <ArrowRight className="h-3 w-3" />
@@ -272,7 +289,7 @@ export function CashFlowStatement({
           <CardContent className="pt-6">
             <div className="flex items-start justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">期末现金</div>
-              <Link href={`/cash-flow/ending-balance?startDate=${startDate}&endDate=${endDate}`}>
+              <Link href={buildDetailUrl('/cash-flow/ending-balance')}>
                 <Button variant="ghost" size="sm" className="gap-1 h-6 text-xs -mt-1 -mr-2">
                   查看明细
                   <ArrowRight className="h-3 w-3" />
@@ -371,176 +388,123 @@ export function CashFlowStatement({
                 className="h-[300px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={(() => {
-                      if (!monthlyData || monthlyData.length === 0) return []
+                  {(() => {
+                    if (!monthlyData || monthlyData.length === 0) return null
 
-                      // 计算整个期间的累计数据
-                      const firstMonth = monthlyData[0]
-                      const lastMonth = monthlyData[monthlyData.length - 1]
+                    // 计算整个期间的累计数据
+                    const firstMonth = monthlyData[0]
+                    const lastMonth = monthlyData[monthlyData.length - 1]
 
-                      const beginning = firstMonth.beginningBalance
-                      const ending = lastMonth.endingBalance
+                    const beginning = firstMonth.beginningBalance
+                    const ending = lastMonth.endingBalance
 
-                      // 累计三大活动的现金流
-                      const operating = monthlyData.reduce((sum, month) => sum + month.operating, 0)
-                      const investing = monthlyData.reduce((sum, month) => sum + month.investing, 0)
-                      const financing = monthlyData.reduce((sum, month) => sum + month.financing, 0)
+                    // 累计三大活动的现金流
+                    const operating = monthlyData.reduce((sum, month) => sum + month.operating, 0)
+                    const investing = monthlyData.reduce((sum, month) => sum + month.investing, 0)
+                    const financing = monthlyData.reduce((sum, month) => sum + month.financing, 0)
 
-                      // 构建瀑布图数据
-                      let currentBalance = 0
-                      const waterfallData = []
+                    // 构建瀑布图数据 - 使用堆叠方式
+                    let currentBalance = beginning
+                    const waterfallData = []
 
-                      // 期初余额（总额柱）
-                      waterfallData.push({
-                        name: '期初余额',
-                        start: 0,
-                        value: beginning,
-                        displayValue: beginning,
-                        fill: '#6B7280',
-                        isTotal: true
-                      })
-                      currentBalance = beginning
+                    // 期初余额（总额柱）
+                    waterfallData.push({
+                      name: '期初余额',
+                      base: 0,  // 从0开始
+                      value: beginning,  // 实际显示的柱子高度
+                      displayValue: beginning,
+                      fill: '#6B7280',
+                      isTotal: true
+                    })
 
-                      // 经营活动
-                      if (operating >= 0) {
-                        waterfallData.push({
-                          name: '经营活动',
-                          start: currentBalance,
-                          value: operating,
-                          displayValue: operating,
-                          fill: '#10B981',
-                          isPositive: true
-                        })
-                      } else {
-                        waterfallData.push({
-                          name: '经营活动',
-                          start: currentBalance + operating,
-                          value: -operating,
-                          displayValue: operating,
-                          fill: '#EF4444',
-                          isNegative: true
-                        })
-                      }
-                      currentBalance += operating
+                    // 经营活动
+                    const operatingEnd = currentBalance + operating
+                    waterfallData.push({
+                      name: '经营活动',
+                      base: Math.min(currentBalance, operatingEnd),  // 基准位置（较低的值）
+                      value: Math.abs(operating),  // 柱子高度（绝对值）
+                      displayValue: operating,
+                      fill: operating >= 0 ? '#10B981' : '#EF4444',
+                      isPositive: operating >= 0,
+                      isNegative: operating < 0
+                    })
+                    currentBalance = operatingEnd
 
-                      // 投资活动
-                      if (investing >= 0) {
-                        waterfallData.push({
-                          name: '投资活动',
-                          start: currentBalance,
-                          value: investing,
-                          displayValue: investing,
-                          fill: '#10B981',
-                          isPositive: true
-                        })
-                      } else {
-                        waterfallData.push({
-                          name: '投资活动',
-                          start: currentBalance + investing,
-                          value: -investing,
-                          displayValue: investing,
-                          fill: '#EF4444',
-                          isNegative: true
-                        })
-                      }
-                      currentBalance += investing
+                    // 投资活动
+                    const investingEnd = currentBalance + investing
+                    waterfallData.push({
+                      name: '投资活动',
+                      base: Math.min(currentBalance, investingEnd),
+                      value: Math.abs(investing),
+                      displayValue: investing,
+                      fill: investing >= 0 ? '#10B981' : '#EF4444',
+                      isPositive: investing >= 0,
+                      isNegative: investing < 0
+                    })
+                    currentBalance = investingEnd
 
-                      // 筹资活动
-                      if (financing >= 0) {
-                        waterfallData.push({
-                          name: '筹资活动',
-                          start: currentBalance,
-                          value: financing,
-                          displayValue: financing,
-                          fill: '#10B981',
-                          isPositive: true
-                        })
-                      } else {
-                        waterfallData.push({
-                          name: '筹资活动',
-                          start: currentBalance + financing,
-                          value: -financing,
-                          displayValue: financing,
-                          fill: '#EF4444',
-                          isNegative: true
-                        })
-                      }
-                      currentBalance += financing
+                    // 筹资活动
+                    const financingEnd = currentBalance + financing
+                    waterfallData.push({
+                      name: '筹资活动',
+                      base: Math.min(currentBalance, financingEnd),
+                      value: Math.abs(financing),
+                      displayValue: financing,
+                      fill: financing >= 0 ? '#10B981' : '#EF4444',
+                      isPositive: financing >= 0,
+                      isNegative: financing < 0
+                    })
+                    currentBalance = financingEnd
 
-                      // 期末余额（总额柱）
-                      waterfallData.push({
-                        name: '期末余额',
-                        start: 0,
-                        value: ending,
-                        displayValue: ending,
-                        fill: '#3B82F6',
-                        isTotal: true
-                      })
+                    // 期末余额（总额柱）
+                    waterfallData.push({
+                      name: '期末余额',
+                      base: 0,
+                      value: ending,
+                      displayValue: ending,
+                      fill: '#3B82F6',
+                      isTotal: true
+                    })
 
-                      return waterfallData
-                    })()}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="name" stroke="var(--color-muted-foreground)" />
-                    <YAxis stroke="var(--color-muted-foreground)" />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload
-                          return (
-                            <div className="rounded-lg border bg-background p-3 shadow-sm">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">{data.name}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  金额: ¥{data.displayValue?.toFixed(2) || '0.00'}
-                                </span>
-                                {!data.isTotal && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {data.isPositive ? '流入' : '流出'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        }
-                        return null
-                      }}
-                    />
-                    <Legend />
-                    {/* 透明柱：控制起始位置 */}
-                    <Bar dataKey="start" stackId="a" fill="transparent" />
-                    {/* 实际值柱 */}
-                    <Bar dataKey="value" stackId="a" radius={[4, 4, 0, 0]}>
-                      {(() => {
-                        if (!monthlyData || monthlyData.length === 0) return null
-
-                        // 计算整个期间的累计数据（与上面保持一致）
-                        const operating = monthlyData.reduce((sum, month) => sum + month.operating, 0)
-                        const investing = monthlyData.reduce((sum, month) => sum + month.investing, 0)
-                        const financing = monthlyData.reduce((sum, month) => sum + month.financing, 0)
-
-                        const cells = []
-
-                        // 期初余额
-                        cells.push(<Cell key="beginning" fill="#6B7280" />)
-
-                        // 经营活动
-                        cells.push(<Cell key="operating" fill={operating >= 0 ? '#10B981' : '#EF4444'} />)
-
-                        // 投资活动
-                        cells.push(<Cell key="investing" fill={investing >= 0 ? '#10B981' : '#EF4444'} />)
-
-                        // 筹资活动
-                        cells.push(<Cell key="financing" fill={financing >= 0 ? '#10B981' : '#EF4444'} />)
-
-                        // 期末余额
-                        cells.push(<Cell key="ending" fill="#3B82F6" />)
-
-                        return cells
-                      })()}
-                    </Bar>
-                  </BarChart>
+                    return (
+                      <BarChart data={waterfallData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                        <XAxis dataKey="name" stroke="var(--color-muted-foreground)" />
+                        <YAxis stroke="var(--color-muted-foreground)" />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload
+                              return (
+                                <div className="rounded-lg border bg-background p-3 shadow-sm">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-sm font-semibold">{data.name}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      金额: ¥{data.displayValue?.toFixed(2) || '0.00'}
+                                    </span>
+                                    {!data.isTotal && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {data.isPositive ? '流入' : '流出'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                        {/* 透明的基准柱（用于定位） */}
+                        <Bar dataKey="base" stackId="waterfall" fill="#000" fillOpacity={0} />
+                        {/* 实际显示的柱子 */}
+                        <Bar dataKey="value" stackId="waterfall" radius={[4, 4, 4, 4]}>
+                          {waterfallData.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    )
+                  })()}
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>

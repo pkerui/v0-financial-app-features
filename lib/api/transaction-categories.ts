@@ -9,7 +9,7 @@ export type TransactionCategory = {
   name: string
   type: 'income' | 'expense'
   cash_flow_activity: 'operating' | 'investing' | 'financing'
-  transaction_nature?: 'operating' | 'non_operating'
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax'
   include_in_profit_loss: boolean
   is_system: boolean
   sort_order: number
@@ -21,7 +21,7 @@ export type CategoryFormData = {
   name: string
   type: 'income' | 'expense'
   cash_flow_activity: 'operating' | 'investing' | 'financing'
-  transaction_nature?: 'operating' | 'non_operating'
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax'
   include_in_profit_loss?: boolean
   sort_order?: number
 }
@@ -176,7 +176,7 @@ export async function updateTransactionCategory(id: string, formData: Partial<Ca
     return { error: '系统预设类型不能修改类型（收入/支出）' }
   }
 
-  // 如果修改了名称，检查是否重复并级联更新交易记录
+  // 检查名称是否修改，如果修改需要检查重复
   if (formData.name && formData.name !== category.name) {
     const { data: existing } = await supabase
       .from('transaction_categories')
@@ -190,11 +190,32 @@ export async function updateTransactionCategory(id: string, formData: Partial<Ca
     if (existing) {
       return { error: '该类型名称已存在' }
     }
+  }
 
-    // 级联更新：将所有使用旧名称的交易记录更新为新名称
+  // 级联更新交易记录：如果名称、现金流活动或交易性质发生变化
+  const shouldCascadeUpdate =
+    (formData.name && formData.name !== category.name) ||
+    (formData.cash_flow_activity && formData.cash_flow_activity !== category.cash_flow_activity) ||
+    (formData.transaction_nature !== undefined && formData.transaction_nature !== category.transaction_nature)
+
+  if (shouldCascadeUpdate) {
+    // 构建更新数据对象
+    const transactionUpdates: any = {}
+
+    if (formData.name && formData.name !== category.name) {
+      transactionUpdates.category = formData.name
+    }
+    if (formData.cash_flow_activity && formData.cash_flow_activity !== category.cash_flow_activity) {
+      transactionUpdates.cash_flow_activity = formData.cash_flow_activity
+    }
+    if (formData.transaction_nature !== undefined && formData.transaction_nature !== category.transaction_nature) {
+      transactionUpdates.transaction_nature = formData.transaction_nature
+    }
+
+    // 级联更新：将所有使用该分类的交易记录更新属性
     const { error: updateTransactionsError } = await supabase
       .from('transactions')
-      .update({ category: formData.name })
+      .update(transactionUpdates)
       .eq('company_id', profile.company_id)
       .eq('category', category.name)
 
@@ -325,10 +346,14 @@ export async function mergeTransactionCategories(sourceId: string, targetId: str
     return { error: '只能合并相同类型（收入/支出）的分类' }
   }
 
-  // 更新所有使用源分类的交易记录
+  // 更新所有使用源分类的交易记录（包括分类名称和所有属性）
   const { error: updateError } = await supabase
     .from('transactions')
-    .update({ category: targetCategory.name })
+    .update({
+      category: targetCategory.name,
+      cash_flow_activity: targetCategory.cash_flow_activity,
+      transaction_nature: targetCategory.transaction_nature,
+    })
     .eq('company_id', profile.company_id)
     .eq('category', sourceCategory.name)
 

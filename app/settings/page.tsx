@@ -8,9 +8,15 @@ import { FinancialSettingsForm } from '@/components/financial-settings-form'
 import { CategoryManagement } from '@/components/category-management'
 import { getFinancialSettings } from '@/lib/api/financial-settings'
 import { getTransactionCategories } from '@/lib/api/transaction-categories'
+import { getStoreModeServer } from '@/lib/utils/store-mode'
 
-export default async function SettingsPage() {
+type PageProps = {
+  searchParams: Promise<{ store?: string; stores?: string }>
+}
+
+export default async function SettingsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const params = await searchParams
 
   // 获取当前用户
   const {
@@ -48,16 +54,24 @@ export default async function SettingsPage() {
   const { data: incomeCategories } = await getTransactionCategories('income')
   const { data: expenseCategories } = await getTransactionCategories('expense')
 
+  // 检测店铺模式并构建返回链接
+  const { storeId, storeIds } = getStoreModeServer(params)
+  const dashboardUrl = storeId
+    ? `/dashboard?store=${storeId}`
+    : storeIds.length > 0
+    ? `/dashboard?stores=${storeIds.join(',')}`
+    : '/dashboard'
+
   return (
     <main className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 space-y-6 max-w-4xl">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href={dashboardUrl}>
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                回到总览
+                返回总览
               </Button>
             </Link>
             <div>

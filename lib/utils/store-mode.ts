@@ -1,74 +1,109 @@
 /**
  * Store mode detection utilities for multi-store functionality
  *
- * Supports two modes:
+ * Supports three modes:
  * - 'single': View data for a single store
+ * - 'multi': View aggregated data for selected stores
  * - 'all': View aggregated data for all stores
  */
 
-export type StoreMode = 'single' | 'all'
+export type StoreMode = 'single' | 'multi' | 'all'
 
 export interface StoreModeResult {
   mode: StoreMode
   storeId: string | null
+  storeIds: string[]
 }
 
 /**
  * Get store mode from URL search params (server-side)
  *
  * @param searchParams - Next.js searchParams from page props
- * @returns Store mode and selected store ID
+ * @returns Store mode, selected store ID, and selected store IDs array
  *
  * @example
  * // In a server component
- * export default async function Page({ searchParams }: { searchParams: { store?: string } }) {
- *   const { mode, storeId } = getStoreModeServer(searchParams)
+ * export default async function Page({ searchParams }: { searchParams: { store?: string; stores?: string } }) {
+ *   const { mode, storeId, storeIds } = getStoreModeServer(searchParams)
  *
- *   if (mode === 'all') {
- *     // Fetch data for all stores
- *   } else {
+ *   if (mode === 'single') {
  *     // Fetch data for single store
+ *     query = query.eq('store_id', storeId)
+ *   } else if (mode === 'multi' || mode === 'all') {
+ *     // Fetch data for multiple stores
+ *     if (storeIds.length > 0) {
+ *       query = query.in('store_id', storeIds)
+ *     }
  *   }
  * }
  */
-export function getStoreModeServer(searchParams: { store?: string }): StoreModeResult {
-  const storeParam = searchParams.store
+export function getStoreModeServer(searchParams: { store?: string; stores?: string }): StoreModeResult {
+  const singleStoreParam = searchParams.store
+  const multiStoreParam = searchParams.stores
 
-  if (!storeParam || storeParam === 'all') {
-    return { mode: 'all', storeId: null }
+  // Priority 1: Multiple stores parameter
+  if (multiStoreParam) {
+    const storeIds = multiStoreParam.split(',').filter(Boolean)
+    if (storeIds.length > 1) {
+      return { mode: 'multi', storeId: null, storeIds }
+    } else if (storeIds.length === 1) {
+      // Edge case: stores param with single ID
+      return { mode: 'single', storeId: storeIds[0], storeIds: [storeIds[0]] }
+    }
   }
 
-  return { mode: 'single', storeId: storeParam }
+  // Priority 2: Single store parameter
+  if (singleStoreParam && singleStoreParam !== 'all') {
+    return { mode: 'single', storeId: singleStoreParam, storeIds: [singleStoreParam] }
+  }
+
+  // Default: All stores mode
+  return { mode: 'all', storeId: null, storeIds: [] }
 }
 
 /**
  * Get store mode from URL (client-side)
  *
- * @returns Store mode and selected store ID
+ * @returns Store mode, selected store ID, and selected store IDs array
  *
  * @example
  * // In a client component
- * const { mode, storeId } = getStoreModeClient()
+ * const { mode, storeId, storeIds } = getStoreModeClient()
  *
- * if (mode === 'all') {
- *   // Show aggregated view
- * } else {
+ * if (mode === 'single') {
  *   // Show single store view
+ * } else if (mode === 'multi') {
+ *   // Show multi-store aggregated view
+ * } else {
+ *   // Show all stores aggregated view
  * }
  */
 export function getStoreModeClient(): StoreModeResult {
   if (typeof window === 'undefined') {
-    return { mode: 'all', storeId: null }
+    return { mode: 'all', storeId: null, storeIds: [] }
   }
 
   const params = new URLSearchParams(window.location.search)
-  const storeParam = params.get('store')
+  const singleStoreParam = params.get('store')
+  const multiStoreParam = params.get('stores')
 
-  if (!storeParam || storeParam === 'all') {
-    return { mode: 'all', storeId: null }
+  // Priority 1: Multiple stores parameter
+  if (multiStoreParam) {
+    const storeIds = multiStoreParam.split(',').filter(Boolean)
+    if (storeIds.length > 1) {
+      return { mode: 'multi', storeId: null, storeIds }
+    } else if (storeIds.length === 1) {
+      return { mode: 'single', storeId: storeIds[0], storeIds: [storeIds[0]] }
+    }
   }
 
-  return { mode: 'single', storeId: storeParam }
+  // Priority 2: Single store parameter
+  if (singleStoreParam && singleStoreParam !== 'all') {
+    return { mode: 'single', storeId: singleStoreParam, storeIds: [singleStoreParam] }
+  }
+
+  // Default: All stores mode
+  return { mode: 'all', storeId: null, storeIds: [] }
 }
 
 /**

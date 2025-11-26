@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ActivityDetailClientWrapper } from '@/components/activity-detail-client-wrapper'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
+import { getStoreModeServer } from '@/lib/utils/store-mode'
 
 type PageProps = {
   params: Promise<{
@@ -10,6 +11,8 @@ type PageProps = {
   searchParams: Promise<{
     startDate?: string
     endDate?: string
+    store?: string
+    stores?: string
   }>
 }
 
@@ -51,17 +54,40 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
     )
   }
 
+  // 检测 store 模式
+  const searchParamsResolved = await searchParams
+  const { storeId, storeIds } = getStoreModeServer(searchParamsResolved)
+
+  // 获取店铺信息（如果是单店模式）
+  let storeName: string | undefined
+  if (storeId) {
+    const { data: store } = await supabase
+      .from('stores')
+      .select('name')
+      .eq('id', storeId)
+      .eq('company_id', profile.company_id)
+      .single()
+    storeName = store?.name
+  }
+
   // 验证日期范围（包含期初余额日期检查）
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
   // 获取该活动的交易记录（使用验证后的日期）
-  const { data: transactions } = await supabase
+  let query = supabase
     .from('transactions')
     .select('*')
     .eq('company_id', profile.company_id)
     .eq('cash_flow_activity', type)
     .gte('date', dateValidation.startDate)
     .lte('date', dateValidation.endDate)
+
+  // 如果是单店或多店模式，过滤 store_id
+  if (storeIds.length > 0) {
+    query = query.in('store_id', storeIds)
+  }
+
+  const { data: transactions } = await query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -70,6 +96,8 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
       activity={type}
       allTransactions={transactions || []}
       dateValidation={dateValidation}
+      storeId={storeId}
+      storeName={storeName}
     />
   )
 }

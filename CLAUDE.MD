@@ -4,6 +4,48 @@
 
 **Never code without approval.** Ask "Should I proceed?" → Wait for "yes" → Then implement. No exceptions.
 
+## 🔍 Pre-Implementation Analysis (必须执行)
+
+### 1. 方案与框架要求
+
+**每次修改前必须提供：**
+- 修改目标和背景说明
+- 技术方案概述
+- 涉及的文件和模块
+- 实现步骤框架
+- 潜在风险评估
+
+### 2. 数据库检查要求
+
+**修改数据库相关功能前必须：**
+- ✅ 查看相关表的当前结构（字段、类型、约束）
+- ✅ 检查现有数据状态（是否有冲突数据）
+- ✅ 确认关联表的依赖关系
+- ✅ 验证 CHECK 约束和外键约束
+- ✅ 检查相关的迁移文件历史
+
+**检查命令模板：**
+```sql
+-- 查看表结构
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'table_name';
+
+-- 查看约束
+SELECT constraint_name, constraint_type
+FROM information_schema.table_constraints
+WHERE table_name = 'table_name';
+
+-- 查看现有数据分布
+SELECT DISTINCT column_name, COUNT(*)
+FROM table_name GROUP BY column_name;
+```
+
+**禁止行为：**
+- ❌ 未检查数据库就提出方案
+- ❌ 假设字段存在或不存在
+- ❌ 忽略现有数据的兼容性
+
 ## 🤖 Role Definition
 
 ### Identity

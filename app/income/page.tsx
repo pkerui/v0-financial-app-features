@@ -10,7 +10,7 @@ import { getActiveStores } from '@/lib/api/stores'
 import { IncomeAggregationView } from '@/components/income-aggregation-view'
 
 type PageProps = {
-  searchParams: Promise<{ startDate?: string; endDate?: string; store?: string }>
+  searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
 }
 
 export default async function IncomePage({ searchParams }: PageProps) {
@@ -63,18 +63,39 @@ export default async function IncomePage({ searchParams }: PageProps) {
   // 获取店铺列表
   const { data: stores } = await getActiveStores()
 
-  // 检测店铺模式
+  // 获取收入分类列表（从数据库）
+  const { data: incomeCategories } = await supabase
+    .from('transaction_categories')
+    .select('id, name, cash_flow_activity, transaction_nature')
+    .eq('company_id', profile.company_id)
+    .eq('type', 'income')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  // 检测店铺模式（支持单店、多店、全部店铺）
   const params = await searchParams
-  const { mode, storeId } = getStoreModeServer(params)
+  const { mode, storeId, storeIds } = getStoreModeServer(params)
+
+  // 构建返回链接
+  const dashboardUrl = storeId
+    ? `/dashboard?store=${storeId}`
+    : storeIds.length > 0
+    ? `/dashboard?stores=${storeIds.join(',')}`
+    : '/dashboard'
 
   // 根据模式获取数据
-  if (mode === 'all' && stores && stores.length > 1) {
+  // 多店汇总模式：显示选中店铺的汇总数据
+  if ((mode === 'multi' || mode === 'all') && stores && stores.length > 1) {
+    // 确定要汇总的店铺列表
+    const targetStores = mode === 'multi' && storeIds.length > 0
+      ? stores.filter(s => storeIds.includes(s.id))
+      : stores
     // 多店汇总模式：获取每个店铺的收入汇总数据
     const storeSummaries = await Promise.all(
-      stores.map(async (store) => {
+      targetStores.map(async (store) => {
         const { data: storeTransactions } = await supabase
           .from('transactions')
-          .select('category, amount, description, date')
+          .select('category, amount, description, date, transaction_nature')
           .eq('company_id', profile.company_id)
           .eq('store_id', store.id)
           .eq('type', 'income')
@@ -109,21 +130,28 @@ export default async function IncomePage({ searchParams }: PageProps) {
       <div className="min-h-screen bg-background">
         <div className="container mx-auto p-4 md:p-8 max-w-7xl">
           <div className="flex items-center gap-4 mb-6">
-            <Link href="/dashboard">
+            <Link href={dashboardUrl}>
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                回到总览
+                返回总览
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">收入汇总 - 全部店铺</h1>
-              <p className="text-muted-foreground">查看所有店铺的收入汇总</p>
+              <h1 className="text-3xl font-bold text-foreground">
+                收入汇总 - {mode === 'multi' ? `${targetStores.length}家店铺` : '全部店铺'}
+              </h1>
+              <p className="text-muted-foreground">
+                {mode === 'multi'
+                  ? `查看${targetStores.map(s => s.name).join('、')}的收入汇总`
+                  : '查看所有店铺的收入汇总'
+                }
+              </p>
             </div>
           </div>
 
           <IncomeAggregationView
             storeSummaries={storeSummaries}
-            stores={stores}
+            stores={targetStores}
             startDate={dateValidation.startDate}
             endDate={dateValidation.endDate}
           />
@@ -133,18 +161,19 @@ export default async function IncomePage({ searchParams }: PageProps) {
   }
 
   // 单店模式：显示传统的交易列表
-  const { data: transactions, error } = await supabase
+  let query = supabase
     .from('transactions')
     .select('*')
     .eq('company_id', profile.company_id)
     .eq('type', 'income')
     .gte('date', dateValidation.startDate)
     .lte('date', dateValidation.endDate)
-    .modify((query) => {
-      if (storeId) {
-        query.eq('store_id', storeId)
-      }
-    })
+
+  if (storeId) {
+    query = query.eq('store_id', storeId)
+  }
+
+  const { data: transactions, error } = await query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false})
 
@@ -161,10 +190,10 @@ export default async function IncomePage({ searchParams }: PageProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href={dashboardUrl}>
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                回到总览
+                返回总览
               </Button>
             </Link>
             <div>
@@ -174,7 +203,7 @@ export default async function IncomePage({ searchParams }: PageProps) {
               <p className="text-muted-foreground">查看和管理所有收入记录</p>
             </div>
           </div>
-          <Link href="/voice-entry">
+          <Link href={storeId ? `/voice-entry?store=${storeId}` : '/voice-entry'}>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
               新增记录
@@ -190,6 +219,7 @@ export default async function IncomePage({ searchParams }: PageProps) {
           initialEndDate={dateValidation.endDate}
           stores={stores || []}
           currentStoreId={storeId}
+          categories={incomeCategories || []}
         />
       </div>
     </div>

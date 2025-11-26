@@ -43,9 +43,10 @@ type VoiceEntryInterfaceProps = {
   expenseCategories: TransactionCategory[]
   initialBalanceDate?: string
   stores: Store[]
+  defaultStoreId?: string
 }
 
-export function VoiceEntryInterface({ incomeCategories, expenseCategories, initialBalanceDate, stores }: VoiceEntryInterfaceProps) {
+export function VoiceEntryInterface({ incomeCategories, expenseCategories, initialBalanceDate, stores, defaultStoreId }: VoiceEntryInterfaceProps) {
   const router = useRouter()
   const [inputMode, setInputMode] = useState<'voice' | 'manual'>('voice')
   const [isRecording, setIsRecording] = useState(false)
@@ -58,6 +59,10 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
 
   // 店铺选择状态
   const [selectedStoreId, setSelectedStoreId] = useState<string>(() => {
+    // 优先使用传入的默认店铺ID
+    if (defaultStoreId) {
+      return defaultStoreId
+    }
     // 如果只有一个店铺，默认选中
     if (stores.length === 1) {
       return stores[0].id
@@ -443,9 +448,13 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
       return
     }
 
-    // 如果有多个店铺，必须选择店铺
-    if (stores.length > 0 && !selectedStoreId) {
-      setErrorMessage('请选择店铺')
+    // 店铺选择是必填项 - 确保所有交易都关联到具体店铺
+    if (!selectedStoreId) {
+      if (stores.length === 0) {
+        setErrorMessage('系统中还没有店铺，请先在店铺管理中创建店铺')
+      } else {
+        setErrorMessage('请选择店铺 - 所有交易必须关联到具体店铺')
+      }
       return
     }
 
@@ -474,7 +483,7 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
           description: transaction.description,
           date: transaction.date,
           input_method: transaction.input_method,
-          store_id: selectedStoreId || undefined,
+          store_id: selectedStoreId, // 必填项，不使用 undefined
         })
 
         if (result.error) {
@@ -482,8 +491,8 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
         }
       }
 
-      // 保存成功，跳转回 dashboard
-      router.push('/dashboard')
+      // 保存成功，跳转回 dashboard（如果有默认店铺，返回该店铺的总览）
+      router.push(defaultStoreId ? `/dashboard?store=${defaultStoreId}` : '/dashboard')
     } catch (error: any) {
       setErrorMessage(error.message || '保存失败，请重试')
     } finally {
@@ -521,10 +530,10 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
     <div className="space-y-6 p-4 md:p-8 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/dashboard">
+        <Link href={defaultStoreId ? `/dashboard?store=${defaultStoreId}` : '/dashboard'}>
           <Button variant="outline" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            回到总览
+            返回总览
           </Button>
         </Link>
         <div>
@@ -536,13 +545,23 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
       <div className="grid gap-6 md:grid-cols-2">
         {/* 输入界面 */}
         <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>添加交易</CardTitle>
-            <CardDescription>选择输入方式</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* 店铺选择器 */}
-            {stores.length > 0 && (
+          <CardContent className="pt-6">
+            {/* 店铺信息显示区域 */}
+            {defaultStoreId ? (
+              // 单店模式：显示当前店铺信息（只读）
+              <div className="mb-6 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    当前店铺：{stores.find(s => s.id === defaultStoreId)?.name || '未知店铺'}
+                  </p>
+                </div>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1 ml-4">
+                  新增的记录将自动归属此店铺
+                </p>
+              </div>
+            ) : (
+              // 全局模式：需要选择店铺
               <div className="mb-6">
                 <StoreSelector
                   stores={stores}
@@ -552,6 +571,17 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
                   placeholder="请选择店铺"
                   required={true}
                 />
+                {stores.length === 0 && (
+                  <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      系统中还没有店铺，请先前往{' '}
+                      <Link href="/stores" className="font-medium underline hover:text-amber-900">
+                        店铺管理
+                      </Link>
+                      {' '}创建店铺
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -11,7 +11,7 @@ type Transaction = {
   description?: string
   category_id?: string
   cash_flow_activity?: 'operating' | 'investing' | 'financing'
-  transaction_nature?: 'operating' | 'non_operating'
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax'
   include_in_profit_loss?: boolean
 }
 
@@ -53,7 +53,12 @@ export interface ProfitLossData {
   }
   // 四、利润总额
   totalProfit: number
-  // 五、净利润（等于利润总额，所得税已在营业外支出中）
+  // 减：所得税费用
+  incomeTax: {
+    items: CategoryDetail[]
+    total: number
+  }
+  // 五、净利润
   netProfit: number
 }
 
@@ -93,11 +98,19 @@ export function calculateProfitLoss(transactions: Transaction[]): ProfitLossData
     t.transaction_nature === 'non_operating'
   )
 
+  // 所得税费用（独立分类）
+  const incomeTaxTransactions = transactions.filter(t =>
+    t.type === 'expense' &&
+    (t.include_in_profit_loss !== false) &&
+    t.transaction_nature === 'income_tax'
+  )
+
   // 计算总收入和总成本
   const totalRevenue = operatingIncomeTransactions.reduce((sum, t) => sum + t.amount, 0)
   const totalCost = operatingExpenseTransactions.reduce((sum, t) => sum + t.amount, 0)
   const totalNonOperatingIncome = nonOperatingIncomeTransactions.reduce((sum, t) => sum + t.amount, 0)
   const totalNonOperatingExpense = nonOperatingExpenseTransactions.reduce((sum, t) => sum + t.amount, 0)
+  const totalIncomeTax = incomeTaxTransactions.reduce((sum, t) => sum + t.amount, 0)
 
   // 按类别聚合营业内收入
   const revenueByCategory = new Map<string, { amount: number; count: number }>()
@@ -147,6 +160,18 @@ export function calculateProfitLoss(transactions: Transaction[]): ProfitLossData
     }
   })
 
+  // 按类别聚合所得税费用
+  const incomeTaxByCategory = new Map<string, { amount: number; count: number }>()
+  incomeTaxTransactions.forEach(t => {
+    const existing = incomeTaxByCategory.get(t.category)
+    if (existing) {
+      existing.amount += t.amount
+      existing.count += 1
+    } else {
+      incomeTaxByCategory.set(t.category, { amount: t.amount, count: 1 })
+    }
+  })
+
   // 转换为数组并计算百分比
   const revenueItems: CategoryDetail[] = []
   revenueByCategory.forEach((data, category) => {
@@ -192,10 +217,21 @@ export function calculateProfitLoss(transactions: Transaction[]): ProfitLossData
   })
   nonOperatingExpenseItems.sort((a, b) => b.amount - a.amount)
 
+  const incomeTaxItems: CategoryDetail[] = []
+  incomeTaxByCategory.forEach((data, category) => {
+    incomeTaxItems.push({
+      category,
+      amount: data.amount,
+      count: data.count,
+      percentage: totalIncomeTax > 0 ? (data.amount / totalIncomeTax) * 100 : 0
+    })
+  })
+  incomeTaxItems.sort((a, b) => b.amount - a.amount)
+
   // 计算利润
   const operatingProfit = totalRevenue - totalCost
   const totalProfit = operatingProfit + totalNonOperatingIncome - totalNonOperatingExpense
-  const netProfit = totalProfit // 等于利润总额（所得税已在营业外支出中）
+  const netProfit = totalProfit - totalIncomeTax // 净利润 = 利润总额 - 所得税费用
 
   return {
     revenue: {
@@ -216,8 +252,28 @@ export function calculateProfitLoss(transactions: Transaction[]): ProfitLossData
       total: totalNonOperatingExpense
     },
     totalProfit,
+    incomeTax: {
+      items: incomeTaxItems,
+      total: totalIncomeTax
+    },
     netProfit
   }
+}
+
+/**
+ * 月度利润数据结构
+ */
+export interface MonthlyProfitData {
+  month: string
+  revenue: number
+  cost: number
+  profit: number
+  nonOperatingIncome: number
+  nonOperatingExpense: number
+  incomeTax: number
+  // 汇总字段（用于简化图表）
+  totalIncome: number  // 总收入 = 营业收入 + 营业外收入
+  totalExpense: number // 总支出 = 营业成本 + 营业外支出 + 所得税
 }
 
 /**
@@ -227,14 +283,7 @@ export function calculateMonthlyProfitLoss(
   transactions: Transaction[],
   startDate: Date,
   endDate: Date
-): Array<{
-  month: string
-  revenue: number
-  cost: number
-  profit: number
-  nonOperatingIncome: number
-  nonOperatingExpense: number
-}> {
+): MonthlyProfitData[] {
   // 按月分组
   const monthlyTransactions = new Map<string, Transaction[]>()
 
@@ -249,14 +298,7 @@ export function calculateMonthlyProfitLoss(
   })
 
   // 计算每月利润
-  const result: Array<{
-    month: string
-    revenue: number
-    cost: number
-    profit: number
-    nonOperatingIncome: number
-    nonOperatingExpense: number
-  }> = []
+  const result: MonthlyProfitData[] = []
 
   const sortedMonths = Array.from(monthlyTransactions.keys()).sort()
 
@@ -264,13 +306,20 @@ export function calculateMonthlyProfitLoss(
     const monthTransactions = monthlyTransactions.get(monthKey) || []
     const profitLoss = calculateProfitLoss(monthTransactions)
 
+    // 计算汇总字段
+    const totalIncome = profitLoss.revenue.total + profitLoss.nonOperatingIncome.total
+    const totalExpense = profitLoss.cost.total + profitLoss.nonOperatingExpense.total + profitLoss.incomeTax.total
+
     result.push({
       month: monthKey,
       revenue: profitLoss.revenue.total,
       cost: profitLoss.cost.total,
       profit: profitLoss.netProfit,
       nonOperatingIncome: profitLoss.nonOperatingIncome.total,
-      nonOperatingExpense: profitLoss.nonOperatingExpense.total
+      nonOperatingExpense: profitLoss.nonOperatingExpense.total,
+      incomeTax: profitLoss.incomeTax.total,
+      totalIncome,
+      totalExpense
     })
   })
 

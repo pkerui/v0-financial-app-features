@@ -29,6 +29,8 @@ type ActivityDetailContentProps = {
   endDate: string
   onDateChange: (startDate: string, endDate: string) => void
   initialBalanceDate?: string
+  storeId?: string
+  storeName?: string
 }
 
 export function ActivityDetailContent({
@@ -37,8 +39,14 @@ export function ActivityDetailContent({
   startDate,
   endDate,
   onDateChange,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeName
 }: ActivityDetailContentProps) {
+  // 构建返回链接
+  const dashboardUrl = storeId ? `/dashboard?store=${storeId}` : '/dashboard'
+  const cashFlowUrl = storeId ? `/cash-flow?store=${storeId}` : '/cash-flow'
+
   // 分离收入和支出
   const incomeTransactions = useMemo(() => allTransactions.filter(t => t.type === 'income'), [allTransactions])
   const expenseTransactions = useMemo(() => allTransactions.filter(t => t.type === 'expense'), [allTransactions])
@@ -99,19 +107,21 @@ export function ActivityDetailContent({
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              <Link href="/cash-flow">
+              <Link href={cashFlowUrl}>
                 <Button variant="outline" size="icon">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/dashboard">
+              <Link href={dashboardUrl}>
                 <Button variant="outline" size="sm">
-                  回到总览
+                  返回总览
                 </Button>
               </Link>
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{activityNames[activity]}</h1>
+              <h1 className="text-3xl font-bold">
+                {activityNames[activity]}{storeName ? ` - ${storeName}` : ''}
+              </h1>
               <p className="text-muted-foreground">
                 查看交易记录明细（{startDate} 至 {endDate}）
               </p>

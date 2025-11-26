@@ -11,18 +11,27 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { getToday } from '@/lib/utils/date'
 
+type MonthlyProfitData = {
+  month: string
+  revenue: number
+  cost: number
+  profit: number
+  nonOperatingIncome: number
+  nonOperatingExpense: number
+  incomeTax: number
+  totalIncome: number
+  totalExpense: number
+}
+
 type ProfitLossStatementProps = {
   profitLossData: ProfitLossData
-  monthlyData?: Array<{
-    month: string
-    revenue: number
-    cost: number
-    profit: number
-  }>
+  monthlyData?: MonthlyProfitData[]
   startDate: string
   endDate: string
   onDateChange: (startDate: string, endDate: string) => void
   initialBalanceDate?: string
+  storeId?: string
+  storeIds?: string[]
 }
 
 export function ProfitLossStatement({
@@ -31,9 +40,24 @@ export function ProfitLossStatement({
   startDate,
   endDate,
   onDateChange,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeIds
 }: ProfitLossStatementProps) {
   const [showChart, setShowChart] = useState(true)
+
+  // 构建包含 store 参数的 URL
+  const buildDetailUrl = (basePath: string) => {
+    const params = new URLSearchParams()
+    params.set('startDate', startDate)
+    params.set('endDate', endDate)
+    if (storeId) {
+      params.set('store', storeId)
+    } else if (storeIds && storeIds.length > 0) {
+      params.set('stores', storeIds.join(','))
+    }
+    return `${basePath}?${params.toString()}`
+  }
 
   // 导出CSV
   const exportToCSV = () => {
@@ -91,7 +115,14 @@ export function ProfitLossStatement({
     lines.push('')
 
     // 减：所得税费用
-    lines.push('减：所得税费用,7,0.00')
+    lines.push('减：所得税费用,7,' + profitLossData.incomeTax.total.toFixed(2))
+    if (profitLossData.incomeTax.items.length > 0) {
+      profitLossData.incomeTax.items.forEach(item => {
+        lines.push(`  ${item.category},,${item.amount.toFixed(2)}`)
+      })
+    } else {
+      lines.push('  暂无数据,,-')
+    }
     lines.push('')
 
     // 五、净利润
@@ -141,12 +172,12 @@ export function ProfitLossStatement({
       </Card>
 
       {/* 汇总卡片 */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         {/* 营业内损益卡片 */}
         <Card className="border-blue-200 bg-blue-50/30">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold text-blue-900">营业内损益</CardTitle>
-            <Link href={`/profit-loss/operating?startDate=${startDate}&endDate=${endDate}`}>
+            <Link href={buildDetailUrl('/profit-loss/operating')}>
               <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
                 查看明细
                 <ArrowRight className="h-3 w-3" />
@@ -188,7 +219,7 @@ export function ProfitLossStatement({
         <Card className="border-amber-200 bg-amber-50/30">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold text-amber-900">营业外损益</CardTitle>
-            <Link href={`/profit-loss/non-operating?startDate=${startDate}&endDate=${endDate}`}>
+            <Link href={buildDetailUrl('/profit-loss/non-operating')}>
               <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
                 查看明细
                 <ArrowRight className="h-3 w-3" />
@@ -226,13 +257,53 @@ export function ProfitLossStatement({
           </CardContent>
         </Card>
 
+        {/* 所得税卡片 */}
+        <Card className="border-purple-200 bg-purple-50/30">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-semibold text-purple-900">所得税</CardTitle>
+            <Link href={buildDetailUrl('/profit-loss/income-tax')}>
+              <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
+                查看明细
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-2xl font-bold text-purple-600">
+              ¥{profitLossData.incomeTax.total.toFixed(2)}
+            </div>
+            {profitLossData.incomeTax.items.length > 0 ? (
+              <div className="space-y-1">
+                {profitLossData.incomeTax.items.slice(0, 3).map((item, index) => (
+                  <div key={index} className="flex justify-between text-xs">
+                    <span className="text-purple-700">{item.category}</span>
+                    <span className="text-purple-600">¥{item.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+                {profitLossData.incomeTax.items.length > 3 && (
+                  <div className="text-xs text-purple-500">
+                    还有 {profitLossData.incomeTax.items.length - 3} 项...
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-purple-500">暂无所得税记录</div>
+            )}
+            <div className="pt-2 border-t border-purple-200">
+              <div className="text-xs text-purple-700">
+                从利润总额中扣除
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 净利润卡片 */}
         <Card className={profitLossData.netProfit >= 0 ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30'}>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className={`text-base font-semibold ${profitLossData.netProfit >= 0 ? 'text-green-900' : 'text-red-900'}`}>
               净利润
             </CardTitle>
-            <Link href={`/profit-loss/all?startDate=${startDate}&endDate=${endDate}`}>
+            <Link href={buildDetailUrl('/profit-loss/all')}>
               <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
                 查看明细
                 <ArrowRight className="h-3 w-3" />
@@ -245,7 +316,8 @@ export function ProfitLossStatement({
             </div>
             <div className="text-sm text-muted-foreground space-y-1">
               <div>利润总额：¥{profitLossData.totalProfit.toFixed(2)}</div>
-              <div>= 营业利润 + 营业外净额</div>
+              <div>减：所得税费用 ¥{profitLossData.incomeTax.total.toFixed(2)}</div>
+              <div className="text-xs">= 营业利润 + 营业外净额 - 所得税</div>
             </div>
           </CardContent>
         </Card>
@@ -254,20 +326,18 @@ export function ProfitLossStatement({
       {/* 趋势图表 - 左右并排 */}
       {showChart && (
         <div className="grid gap-4 md:grid-cols-2">
-          {/* 左图：月度趋势 */}
+          {/* 左图：月度趋势（简化版：收入 vs 支出 vs 净利润） */}
           <Card>
             <CardHeader>
               <CardTitle>月度利润构成</CardTitle>
-              <CardDescription>最近6个月每月的收入、成本及净利润对比</CardDescription>
+              <CardDescription>最近6个月总收入、总支出及净利润对比</CardDescription>
             </CardHeader>
             <CardContent>
               <ChartContainer
                 config={{
-                  营业内收入: { label: '营业内收入', color: '#3B82F6' },
-                  营业内成本: { label: '营业内成本', color: '#EF4444' },
-                  营业外收入: { label: '营业外收入', color: '#10B981' },
-                  营业外支出: { label: '营业外支出', color: '#F97316' },
-                  净利润: { label: '净利润', color: '#8B5CF6' },
+                  总收入: { label: '总收入', color: '#3B82F6' },
+                  总支出: { label: '总支出', color: '#EF4444' },
+                  净利润: { label: '净利润', color: '#10B981' },
                 }}
                 className="h-[300px]"
               >
@@ -278,22 +348,17 @@ export function ProfitLossStatement({
                     let displayData = monthlyData.slice(-targetLength)
 
                     if (displayData.length < targetLength) {
-                      // 计算需要填充的月份数量
                       const fillCount = targetLength - displayData.length
+                      const fillData: MonthlyProfitData[] = []
 
-                      // 生成填充数据（从最早的数据月份往前推）
-                      const fillData = []
                       for (let i = fillCount; i > 0; i--) {
-                        // 如果有数据，从第一个月份往前推；否则从当前月份往前推
                         let monthLabel = ''
                         if (displayData.length > 0) {
-                          // 从第一个真实数据往前推
                           const firstMonth = displayData[0].month
                           const [year, month] = firstMonth.split('-').map(Number)
                           const date = new Date(year, month - 1 - i, 1)
                           monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
                         } else {
-                          // 没有数据时，从当前月份往前推
                           const now = new Date()
                           const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
                           monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -305,20 +370,21 @@ export function ProfitLossStatement({
                           cost: 0,
                           profit: 0,
                           nonOperatingIncome: 0,
-                          nonOperatingExpense: 0
+                          nonOperatingExpense: 0,
+                          incomeTax: 0,
+                          totalIncome: 0,
+                          totalExpense: 0
                         })
                       }
 
                       displayData = [...fillData, ...displayData]
                     }
 
-                    // 转换数据为分组柱状图格式（支出显示为负值）
+                    // 简化为3组柱状图：总收入、总支出、净利润
                     return displayData.map(item => ({
                       month: item.month,
-                      营业内收入: item.revenue,
-                      营业内成本: -item.cost,  // 负值显示在负轴
-                      营业外收入: item.nonOperatingIncome,
-                      营业外支出: -item.nonOperatingExpense,  // 负值显示在负轴
+                      总收入: item.totalIncome,
+                      总支出: item.totalExpense,
                       净利润: item.profit
                     }))
                   })()}>
@@ -327,57 +393,47 @@ export function ProfitLossStatement({
                     <YAxis stroke="var(--color-muted-foreground)" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    {/* 分组柱状图 */}
-                    <Bar dataKey="营业内收入" fill="#3B82F6" name="营业内收入" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="营业内成本" fill="#EF4444" name="营业内成本" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="营业外收入" fill="#10B981" name="营业外收入" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="营业外支出" fill="#F97316" name="营业外支出" radius={[4, 4, 0, 0]} />
-                    {/* 净利润线条覆盖在柱状图上 */}
-                    <Line type="monotone" dataKey="净利润" stroke="#8B5CF6" strokeWidth={3} name="净利润" dot={{ fill: '#8B5CF6', r: 5 }} />
+                    <Bar dataKey="总收入" fill="#3B82F6" name="总收入" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="总支出" fill="#EF4444" name="总支出" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="净利润" fill="#10B981" name="净利润" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
           </Card>
 
-          {/* 右图：累计走势 */}
+          {/* 右图：累计走势（简化版） */}
           <Card>
             <CardHeader>
               <CardTitle>累计走势</CardTitle>
-              <CardDescription>最近6个月的累计营业利润、营业外净额及净利润趋势</CardDescription>
+              <CardDescription>最近6个月的累计收入、支出及净利润趋势</CardDescription>
             </CardHeader>
             <CardContent>
               <ChartContainer
                 config={{
-                  累计营业利润: { label: '累计营业利润', color: '#3B82F6' },
-                  累计营业外净额: { label: '累计营业外净额', color: '#F59E0B' },
+                  累计收入: { label: '累计收入', color: '#3B82F6' },
+                  累计支出: { label: '累计支出', color: '#EF4444' },
                   累计净利润: { label: '累计净利润', color: '#10B981' },
                 }}
                 className="h-[300px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={(() => {
-                    // 确保始终显示6个月的数据，不足的用0填充
                     const targetLength = 6
                     let displayData = monthlyData.slice(-targetLength)
 
                     if (displayData.length < targetLength) {
-                      // 计算需要填充的月份数量
                       const fillCount = targetLength - displayData.length
+                      const fillData: MonthlyProfitData[] = []
 
-                      // 生成填充数据（从最早的数据月份往前推）
-                      const fillData = []
                       for (let i = fillCount; i > 0; i--) {
-                        // 如果有数据，从第一个月份往前推；否则从当前月份往前推
                         let monthLabel = ''
                         if (displayData.length > 0) {
-                          // 从第一个真实数据往前推
                           const firstMonth = displayData[0].month
                           const [year, month] = firstMonth.split('-').map(Number)
                           const date = new Date(year, month - 1 - i, 1)
                           monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
                         } else {
-                          // 没有数据时，从当前月份往前推
                           const now = new Date()
                           const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
                           monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -389,7 +445,10 @@ export function ProfitLossStatement({
                           cost: 0,
                           profit: 0,
                           nonOperatingIncome: 0,
-                          nonOperatingExpense: 0
+                          nonOperatingExpense: 0,
+                          incomeTax: 0,
+                          totalIncome: 0,
+                          totalExpense: 0
                         })
                       }
 
@@ -397,22 +456,19 @@ export function ProfitLossStatement({
                     }
 
                     // 计算累计值
-                    let cumulativeOperatingProfit = 0
-                    let cumulativeNonOperatingNet = 0
+                    let cumulativeIncome = 0
+                    let cumulativeExpense = 0
                     let cumulativeNetProfit = 0
 
                     return displayData.map(item => {
-                      // 累计营业利润 = 累计(收入 - 成本)
-                      cumulativeOperatingProfit += (item.revenue - item.cost)
-                      // 累计营业外净额 = 累计(营业外收入 - 营业外支出)
-                      cumulativeNonOperatingNet += (item.nonOperatingIncome - item.nonOperatingExpense)
-                      // 累计净利润 = 累计营业利润 + 累计营业外净额
-                      cumulativeNetProfit = cumulativeOperatingProfit + cumulativeNonOperatingNet
+                      cumulativeIncome += item.totalIncome
+                      cumulativeExpense += item.totalExpense
+                      cumulativeNetProfit += item.profit
 
                       return {
                         month: item.month,
-                        累计营业利润: cumulativeOperatingProfit,
-                        累计营业外净额: cumulativeNonOperatingNet,
+                        累计收入: cumulativeIncome,
+                        累计支出: cumulativeExpense,
                         累计净利润: cumulativeNetProfit
                       }
                     })
@@ -424,20 +480,20 @@ export function ProfitLossStatement({
                     <Legend />
                     <Line
                       type="monotone"
-                      dataKey="累计营业利润"
+                      dataKey="累计收入"
                       stroke="#3B82F6"
                       strokeWidth={2}
-                      name="累计营业利润"
+                      name="累计收入"
                       dot={{ fill: '#3B82F6', r: 4 }}
                       activeDot={{ r: 6 }}
                     />
                     <Line
                       type="monotone"
-                      dataKey="累计营业外净额"
-                      stroke="#F59E0B"
+                      dataKey="累计支出"
+                      stroke="#EF4444"
                       strokeWidth={2}
-                      name="累计营业外净额"
-                      dot={{ fill: '#F59E0B', r: 4 }}
+                      name="累计支出"
+                      dot={{ fill: '#EF4444', r: 4 }}
                       activeDot={{ r: 6 }}
                     />
                     <Line
@@ -592,13 +648,31 @@ export function ProfitLossStatement({
                 </tr>
 
                 {/* 减：所得税费用 */}
-                <tr className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                <tr className="border-b border-gray-200 bg-purple-50/50">
                   <td className="py-3 px-6 font-semibold text-gray-900">减：所得税费用</td>
                   <td className="py-3 px-4 text-center text-sm text-gray-600">7</td>
-                  <td className="py-3 px-6 text-right font-semibold text-gray-700">
-                    0.00
+                  <td className="py-3 px-6 text-right font-semibold text-purple-700">
+                    {profitLossData.incomeTax.total.toFixed(2)}
                   </td>
                 </tr>
+                {/* 所得税费用明细 */}
+                {profitLossData.incomeTax.items.length > 0 ? (
+                  profitLossData.incomeTax.items.map((item) => (
+                    <tr key={item.category} className="border-b border-gray-100 hover:bg-purple-50/30 transition-colors">
+                      <td className="py-2.5 px-6 pl-12 text-sm text-gray-600">{item.category}</td>
+                      <td className="py-2.5 px-4 text-center"></td>
+                      <td className="py-2.5 px-6 text-right text-sm text-gray-700">
+                        {item.amount.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-b border-gray-100 hover:bg-purple-50/30 transition-colors">
+                    <td className="py-2.5 px-6 pl-12 text-sm text-gray-400 italic">暂无数据</td>
+                    <td className="py-2.5 px-4 text-center"></td>
+                    <td className="py-2.5 px-6 text-right text-sm text-gray-400">-</td>
+                  </tr>
+                )}
 
                 {/* 五、净利润 */}
                 <tr className="border-y-4 border-gray-600 bg-gradient-to-r from-emerald-100 to-green-100">

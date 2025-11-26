@@ -8,6 +8,7 @@ import { BarChart3, LogOut, Mic, TrendingUp, Wallet, ArrowUpRight, Activity, Fil
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { logout } from '@/lib/auth/actions'
+import { MultiStoreSelector } from '@/components/multi-store-selector'
 
 type Transaction = {
   id: string
@@ -18,6 +19,13 @@ type Transaction = {
   description?: string
 }
 
+type Store = {
+  id: string
+  name: string
+  code?: string
+  city?: string
+}
+
 type DashboardContentProps = {
   totalIncome: number
   totalExpense: number
@@ -25,6 +33,9 @@ type DashboardContentProps = {
   thisMonthIncome: number
   thisMonthExpense: number
   transactions: Transaction[]
+  currentStore?: Store | null
+  allStores: Store[]
+  selectedStores: Store[]
 }
 
 const colors = ['#4F46E5', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#F97316', '#14B8A6']
@@ -35,9 +46,39 @@ export function DashboardContent({
   netProfit,
   thisMonthIncome,
   thisMonthExpense,
-  transactions
+  transactions,
+  currentStore,
+  allStores,
+  selectedStores
 }: DashboardContentProps) {
   const router = useRouter()
+
+  // 处理店铺选择变化
+  const handleStoreSelectionChange = (storeIds: string[]) => {
+    if (storeIds.length === 0) {
+      // 清空选择，显示全局视图
+      router.push('/dashboard')
+    } else if (storeIds.length === 1) {
+      // 单店模式（向后兼容）
+      router.push(`/dashboard?store=${storeIds[0]}`)
+    } else {
+      // 多店模式
+      router.push(`/dashboard?stores=${storeIds.join(',')}`)
+    }
+  }
+
+  // 生成带店铺参数的URL - 保持单店上下文
+  const buildUrl = (basePath: string) => {
+    if (currentStore) {
+      // 单店模式：保持 store 参数
+      return `${basePath}?store=${currentStore.id}`
+    } else if (selectedStores.length > 0) {
+      // 多店模式：保持 stores 参数
+      return `${basePath}?stores=${selectedStores.map(s => s.id).join(',')}`
+    }
+    // 全局模式：不带参数
+    return basePath
+  }
 
   // 计算本月交易数量
   const now = new Date()
@@ -132,36 +173,71 @@ export function DashboardContent({
   return (
     <div className="space-y-6 p-4 md:p-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">总览</h1>
-          <p className="text-muted-foreground">欢迎回来！以下是您的财务概览。</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              {currentStore
+                ? `${currentStore.name} - 总览`
+                : selectedStores.length > 1
+                ? `多店汇总 (${selectedStores.length}家)`
+                : '全局总览'
+              }
+            </h1>
+            <p className="text-muted-foreground">
+              {currentStore
+                ? `${currentStore.name}的财务概览${currentStore.city ? ` · ${currentStore.city}` : ''}`
+                : selectedStores.length > 1
+                ? `查看${selectedStores.map(s => s.name).join('、')}的汇总数据`
+                : '欢迎回来！以下是您的财务概览。'
+              }
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/stores">
+              <Button variant="outline" className="gap-2">
+                <ArrowUpRight className="h-4 w-4 rotate-180" />
+                返回店铺管理
+              </Button>
+            </Link>
+            <Link href={currentStore ? `/voice-entry?store=${currentStore.id}` : '/voice-entry'}>
+              <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Mic className="h-4 w-4" />
+                新增记录
+              </Button>
+            </Link>
+            <Link href={buildUrl('/settings')}>
+              <Button variant="outline" size="icon" title="财务设置">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </Link>
+            <form action={logout}>
+              <Button type="submit" variant="outline">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Link href="/voice-entry">
-            <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Mic className="h-4 w-4" />
-              新增记录
-            </Button>
-          </Link>
-          <Link href="/settings">
-            <Button variant="outline" size="icon" title="财务设置">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </Link>
-          <form action={logout}>
-            <Button type="submit" variant="outline">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </form>
-        </div>
+
+        {/* Multi-Store Selector - 仅在非单店模式下显示 */}
+        {!currentStore && allStores.length > 1 && (
+          <div className="max-w-md">
+            <MultiStoreSelector
+              stores={allStores}
+              value={selectedStores.map(s => s.id)}
+              onChange={handleStoreSelectionChange}
+              label="选择店铺"
+              placeholder="选择要查看的店铺"
+            />
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card
           className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => router.push('/income')}
+          onClick={() => router.push(buildUrl('/income'))}
         >
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
@@ -182,7 +258,7 @@ export function DashboardContent({
 
         <Card
           className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => router.push('/expense')}
+          onClick={() => router.push(buildUrl('/expense'))}
         >
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
@@ -203,7 +279,7 @@ export function DashboardContent({
 
         <Card
           className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => router.push('/transactions')}
+          onClick={() => router.push(buildUrl('/transactions'))}
         >
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
@@ -233,7 +309,7 @@ export function DashboardContent({
         <div className="grid gap-4 md:grid-cols-3">
           <Card
             className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => router.push('/cash-flow')}
+            onClick={() => router.push(buildUrl('/cash-flow'))}
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
@@ -254,7 +330,7 @@ export function DashboardContent({
 
           <Card
             className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => router.push('/profit-loss')}
+            onClick={() => router.push(buildUrl('/profit-loss'))}
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">

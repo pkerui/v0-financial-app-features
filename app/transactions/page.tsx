@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
+import { getStoreModeServer } from '@/lib/utils/store-mode'
+import { getActiveStores } from '@/lib/api/stores'
 
 type PageProps = {
-  searchParams: Promise<{ startDate?: string; endDate?: string }>
+  searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
 }
 
 export default async function TransactionsPage({ searchParams }: PageProps) {
@@ -45,8 +47,23 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
   // 验证日期范围（包含期初余额日期检查）
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
-  // 获取所有交易记录（使用验证后的日期进行服务端过滤）
-  const { data: allTransactions } = await supabase
+  // 获取店铺列表
+  const { data: stores } = await getActiveStores()
+
+  // 获取所有分类列表（收入+支出，从数据库）
+  const { data: allCategories } = await supabase
+    .from('transaction_categories')
+    .select('id, name, type, cash_flow_activity, transaction_nature')
+    .eq('company_id', profile.company_id)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  // 检测店铺模式（支持单店、多店、全部店铺）
+  const params = await searchParams
+  const { mode, storeId, storeIds } = getStoreModeServer(params)
+
+  // 构建查询
+  let query = supabase
     .from('transactions')
     .select(`
       *,
@@ -59,6 +76,14 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
     .eq('company_id', profile.company_id)
     .gte('date', dateValidation.startDate)
     .lte('date', dateValidation.endDate)
+
+  // 根据店铺模式过滤
+  if (storeIds.length > 0) {
+    query = query.in('store_id', storeIds)
+  }
+
+  // 获取所有交易记录（使用验证后的日期进行服务端过滤）
+  const { data: allTransactions } = await query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -83,24 +108,44 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
     }
   }) || []
 
+  // 查找当前店铺名称
+  const currentStore = storeId ? stores?.find(s => s.id === storeId) : null
+
+  // 构建返回链接
+  const dashboardUrl = storeId
+    ? `/dashboard?store=${storeId}`
+    : storeIds.length > 0
+    ? `/dashboard?stores=${storeIds.join(',')}`
+    : '/dashboard'
+
+  // 构建新增记录链接
+  const voiceEntryUrl = storeId ? `/voice-entry?store=${storeId}` : '/voice-entry'
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href={dashboardUrl}>
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                回到总览
+                返回总览
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">交易汇总</h1>
-              <p className="text-muted-foreground">查看和管理所有交易记录</p>
+              <h1 className="text-3xl font-bold text-foreground">
+                交易汇总{currentStore ? ` - ${currentStore.name}` : ''}
+              </h1>
+              <p className="text-muted-foreground">
+                {currentStore
+                  ? `查看和管理${currentStore.name}的所有交易记录`
+                  : '查看和管理所有交易记录'
+                }
+              </p>
             </div>
           </div>
-          <Link href="/voice-entry">
+          <Link href={voiceEntryUrl}>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
               新增记录
@@ -113,6 +158,7 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
           transactions={transactions || []}
           initialStartDate={dateValidation.startDate}
           initialEndDate={dateValidation.endDate}
+          categories={allCategories || []}
         />
       </div>
     </div>

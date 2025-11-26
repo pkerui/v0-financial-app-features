@@ -93,13 +93,12 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
   }
 
   const exportToCSV = () => {
-    const headers = ['日期', '分类', '金额', '描述', '录入方式']
+    const headers = ['日期', '分类', '金额', '描述']
     const rows = filteredTransactions.map(t => [
       new Date(t.date).toLocaleDateString('zh-CN'),
       categoryNames[t.category] || t.category,
       t.amount.toFixed(2),
       t.description || '',
-      t.input_method || '',
     ])
 
     const csvContent = [
@@ -169,7 +168,7 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-32">
+                <TableHead>
                   <Button
                     variant="ghost"
                     onClick={() => handleSort('date')}
@@ -180,7 +179,7 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
                   </Button>
                 </TableHead>
                 <TableHead>分类</TableHead>
-                <TableHead className="w-32">
+                <TableHead>
                   <Button
                     variant="ghost"
                     onClick={() => handleSort('amount')}
@@ -191,14 +190,13 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
                   </Button>
                 </TableHead>
                 <TableHead>描述</TableHead>
-                <TableHead className="w-24">录入方式</TableHead>
-                <TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     暂无{type === 'income' ? '收入' : '支出'}记录
                   </TableCell>
                 </TableRow>
@@ -224,14 +222,6 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
                     </TableCell>
                     <TableCell className="max-w-xs truncate">
                       {transaction.description || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {transaction.input_method === 'voice' && '语音'}
-                        {transaction.input_method === 'manual' && '手动'}
-                        {transaction.input_method === 'text' && '文本'}
-                        {!transaction.input_method && '-'}
-                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

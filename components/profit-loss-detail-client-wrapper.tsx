@@ -20,20 +20,24 @@ type Transaction = {
   amount: number
   description: string | null
   date: string
-  transaction_nature?: 'operating' | 'non_operating' | null
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
   include_in_profit_loss?: boolean | null
 }
 
 type ProfitLossDetailClientWrapperProps = {
-  detailType: 'operating' | 'non_operating' | 'all'
+  detailType: 'operating' | 'non_operating' | 'income_tax' | 'all'
   allTransactions: Transaction[]
   dateValidation: DateRangeValidationResult
+  storeId?: string
+  storeName?: string
 }
 
 export function ProfitLossDetailClientWrapper({
   detailType,
   allTransactions,
-  dateValidation
+  dateValidation,
+  storeId,
+  storeName
 }: ProfitLossDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
   const handleDateChange = useDateRangeNavigation()
@@ -46,6 +50,8 @@ export function ProfitLossDetailClientWrapper({
       endDate={dateValidation.endDate}
       onDateChange={handleDateChange}
       initialBalanceDate={dateValidation.initialBalanceDate}
+      storeId={storeId}
+      storeName={storeName}
     />
   )
 }

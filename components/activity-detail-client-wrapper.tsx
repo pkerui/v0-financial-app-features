@@ -27,12 +27,16 @@ type ActivityDetailClientWrapperProps = {
   activity: 'operating' | 'investing' | 'financing'
   allTransactions: Transaction[]
   dateValidation: DateRangeValidationResult
+  storeId?: string
+  storeName?: string
 }
 
 export function ActivityDetailClientWrapper({
   activity,
   allTransactions,
-  dateValidation
+  dateValidation,
+  storeId,
+  storeName
 }: ActivityDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
   const handleDateChange = useDateRangeNavigation()
@@ -45,6 +49,8 @@ export function ActivityDetailClientWrapper({
       endDate={dateValidation.endDate}
       onDateChange={handleDateChange}
       initialBalanceDate={dateValidation.initialBalanceDate}
+      storeId={storeId}
+      storeName={storeName}
     />
   )
 }

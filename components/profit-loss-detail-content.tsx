@@ -14,27 +14,30 @@ type Transaction = {
   amount: number
   description: string | null
   date: string
-  transaction_nature?: 'operating' | 'non_operating' | null
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
   include_in_profit_loss?: boolean | null
 }
 
 type ProfitLossDetailContentProps = {
-  detailType: 'operating' | 'non_operating' | 'all'
+  detailType: 'operating' | 'non_operating' | 'income_tax' | 'all'
   allTransactions: Transaction[]
   startDate: string
   endDate: string
   onDateChange: (startDate: string, endDate: string) => void
   initialBalanceDate?: string
+  storeId?: string
+  storeName?: string
 }
 
-const detailNames = {
+const detailNames: Record<string, string> = {
   operating: '营业内损益',
   non_operating: '营业外损益',
+  income_tax: '所得税费用',
   all: '全部利润表交易'
 }
 
 // 卡片标签名称
-const cardLabels = {
+const cardLabels: Record<string, { income: string; expense: string; profit: string }> = {
   operating: {
     income: '营业内收入',
     expense: '营业内成本',
@@ -44,6 +47,11 @@ const cardLabels = {
     income: '营业外收入',
     expense: '营业外支出',
     profit: '营业外净额'
+  },
+  income_tax: {
+    income: '所得税收入',
+    expense: '所得税费用',
+    profit: '所得税净额'
   },
   all: {
     income: '总收入',
@@ -58,8 +66,14 @@ export function ProfitLossDetailContent({
   startDate,
   endDate,
   onDateChange,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeName
 }: ProfitLossDetailContentProps) {
+  // 构建返回链接
+  const dashboardUrl = storeId ? `/dashboard?store=${storeId}` : '/dashboard'
+  const profitLossUrl = storeId ? `/profit-loss?store=${storeId}` : '/profit-loss'
+
   // 格式化日期范围显示
   const formatDateRange = (start: string, end: string) => {
     return `${start} 至 ${end}`
@@ -74,6 +88,8 @@ export function ProfitLossDetailContent({
         return inProfitLoss && (t.transaction_nature === 'operating' || !t.transaction_nature)
       } else if (detailType === 'non_operating') {
         return inProfitLoss && t.transaction_nature === 'non_operating'
+      } else if (detailType === 'income_tax') {
+        return inProfitLoss && t.transaction_nature === 'income_tax'
       } else {
         return inProfitLoss
       }
@@ -115,23 +131,23 @@ export function ProfitLossDetailContent({
 
     if (filteredIncomeTransactions.length > 0) {
       lines.push(`${cardLabels[detailType].income}明细`)
-      lines.push('日期,分类,交易性质,金额,描述')
+      lines.push('日期,分类,金额,交易性质,描述')
       filteredIncomeTransactions.forEach(t => {
-        const nature = t.transaction_nature === 'non_operating' ? '营业外' : '营业内'
-        lines.push(`${t.date},${t.category},${nature},${t.amount.toFixed(2)},${t.description || ''}`)
+        const nature = t.transaction_nature === 'non_operating' ? '营业外' : t.transaction_nature === 'income_tax' ? '所得税' : '营业内'
+        lines.push(`${t.date},${t.category},${t.amount.toFixed(2)},${nature},${t.description || ''}`)
       })
-      lines.push(`,,小计,${totalIncome.toFixed(2)},`)
+      lines.push(`,小计,${totalIncome.toFixed(2)},,`)
       lines.push('')
     }
 
     if (filteredExpenseTransactions.length > 0) {
       lines.push(`${cardLabels[detailType].expense}明细`)
-      lines.push('日期,分类,交易性质,金额,描述')
+      lines.push('日期,分类,金额,交易性质,描述')
       filteredExpenseTransactions.forEach(t => {
-        const nature = t.transaction_nature === 'non_operating' ? '营业外' : '营业内'
-        lines.push(`${t.date},${t.category},${nature},${t.amount.toFixed(2)},${t.description || ''}`)
+        const nature = t.transaction_nature === 'non_operating' ? '营业外' : t.transaction_nature === 'income_tax' ? '所得税' : '营业内'
+        lines.push(`${t.date},${t.category},${t.amount.toFixed(2)},${nature},${t.description || ''}`)
       })
-      lines.push(`,,小计,${totalExpense.toFixed(2)},`)
+      lines.push(`,小计,${totalExpense.toFixed(2)},,`)
       lines.push('')
     }
 
@@ -153,19 +169,21 @@ export function ProfitLossDetailContent({
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              <Link href="/profit-loss">
+              <Link href={profitLossUrl}>
                 <Button variant="outline" size="icon">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/dashboard">
+              <Link href={dashboardUrl}>
                 <Button variant="outline" size="sm">
-                  回到总览
+                  返回总览
                 </Button>
               </Link>
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{detailNames[detailType]}</h1>
+              <h1 className="text-3xl font-bold">
+                {detailNames[detailType]}{storeName ? ` - ${storeName}` : ''}
+              </h1>
               <p className="text-muted-foreground">
                 查看交易记录明细（{formatDateRange(startDate, endDate)}）
               </p>
@@ -207,40 +225,42 @@ export function ProfitLossDetailContent({
                   <div>
                     <h3 className="text-lg font-semibold mb-3 text-green-600">{cardLabels[detailType].income}明细</h3>
                     <div className="rounded-md border">
-                      <table className="w-full">
+                      <table className="w-full table-fixed">
                         <thead className="bg-muted/50">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>日期</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>分类</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>交易性质</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>金额</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '40%' }}>描述</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">日期</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">分类</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">金额</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">交易性质</th>
+                            <th className="w-[40%] px-4 py-3 text-left text-sm font-medium">描述</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {filteredIncomeTransactions.map((transaction) => (
                             <tr key={transaction.id} className="hover:bg-muted/50">
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>
+                              <td className="px-4 py-3 text-sm">
                                 {new Date(transaction.date).toLocaleDateString('zh-CN', {
                                   year: 'numeric',
                                   month: '2-digit',
                                   day: '2-digit',
                                 })}
                               </td>
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>{transaction.category}</td>
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>
+                              <td className="px-4 py-3 text-sm">{transaction.category}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-green-600">
+                                +¥{transaction.amount.toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 text-sm">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                   transaction.transaction_nature === 'non_operating'
                                     ? 'bg-amber-100 text-amber-800'
+                                    : transaction.transaction_nature === 'income_tax'
+                                    ? 'bg-purple-100 text-purple-800'
                                     : 'bg-blue-100 text-blue-800'
                                 }`}>
-                                  {transaction.transaction_nature === 'non_operating' ? '营业外' : '营业内'}
+                                  {transaction.transaction_nature === 'non_operating' ? '营业外' : transaction.transaction_nature === 'income_tax' ? '所得税' : '营业内'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm font-semibold text-green-600" style={{ width: '15%' }}>
-                                +¥{transaction.amount.toFixed(2)}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-muted-foreground" style={{ width: '40%' }}>
+                              <td className="px-4 py-3 text-sm text-muted-foreground">
                                 {transaction.description || '-'}
                               </td>
                             </tr>
@@ -248,15 +268,15 @@ export function ProfitLossDetailContent({
                         </tbody>
                         <tfoot className="bg-muted/30">
                           <tr>
-                            <td className="px-4 py-3" style={{ width: '15%' }}></td>
-                            <td className="px-4 py-3 text-sm font-semibold" style={{ width: '15%' }}>
+                            <td className="px-4 py-3"></td>
+                            <td className="px-4 py-3 text-sm font-semibold">
                               小计
                             </td>
-                            <td className="px-4 py-3" style={{ width: '15%' }}></td>
-                            <td className="px-4 py-3 text-sm font-bold text-green-600" style={{ width: '15%' }}>
+                            <td className="px-4 py-3 text-sm font-bold text-green-600">
                               +¥{totalIncome.toFixed(2)}
                             </td>
-                            <td style={{ width: '40%' }}></td>
+                            <td className="px-4 py-3"></td>
+                            <td></td>
                           </tr>
                         </tfoot>
                       </table>
@@ -269,40 +289,42 @@ export function ProfitLossDetailContent({
                   <div>
                     <h3 className="text-lg font-semibold mb-3 text-red-600">{cardLabels[detailType].expense}明细</h3>
                     <div className="rounded-md border">
-                      <table className="w-full">
+                      <table className="w-full table-fixed">
                         <thead className="bg-muted/50">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>日期</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>分类</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>交易性质</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '15%' }}>金额</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium" style={{ width: '40%' }}>描述</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">日期</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">分类</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">金额</th>
+                            <th className="w-[15%] px-4 py-3 text-left text-sm font-medium">交易性质</th>
+                            <th className="w-[40%] px-4 py-3 text-left text-sm font-medium">描述</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {filteredExpenseTransactions.map((transaction) => (
                             <tr key={transaction.id} className="hover:bg-muted/50">
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>
+                              <td className="px-4 py-3 text-sm">
                                 {new Date(transaction.date).toLocaleDateString('zh-CN', {
                                   year: 'numeric',
                                   month: '2-digit',
                                   day: '2-digit',
                                 })}
                               </td>
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>{transaction.category}</td>
-                              <td className="px-4 py-3 text-sm" style={{ width: '15%' }}>
+                              <td className="px-4 py-3 text-sm">{transaction.category}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-red-600">
+                                -¥{transaction.amount.toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 text-sm">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                   transaction.transaction_nature === 'non_operating'
                                     ? 'bg-amber-100 text-amber-800'
+                                    : transaction.transaction_nature === 'income_tax'
+                                    ? 'bg-purple-100 text-purple-800'
                                     : 'bg-blue-100 text-blue-800'
                                 }`}>
-                                  {transaction.transaction_nature === 'non_operating' ? '营业外' : '营业内'}
+                                  {transaction.transaction_nature === 'non_operating' ? '营业外' : transaction.transaction_nature === 'income_tax' ? '所得税' : '营业内'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm font-semibold text-red-600" style={{ width: '15%' }}>
-                                -¥{transaction.amount.toFixed(2)}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-muted-foreground" style={{ width: '40%' }}>
+                              <td className="px-4 py-3 text-sm text-muted-foreground">
                                 {transaction.description || '-'}
                               </td>
                             </tr>
@@ -310,15 +332,15 @@ export function ProfitLossDetailContent({
                         </tbody>
                         <tfoot className="bg-muted/30">
                           <tr>
-                            <td className="px-4 py-3" style={{ width: '15%' }}></td>
-                            <td className="px-4 py-3 text-sm font-semibold" style={{ width: '15%' }}>
+                            <td className="px-4 py-3"></td>
+                            <td className="px-4 py-3 text-sm font-semibold">
                               小计
                             </td>
-                            <td className="px-4 py-3" style={{ width: '15%' }}></td>
-                            <td className="px-4 py-3 text-sm font-bold text-red-600" style={{ width: '15%' }}>
+                            <td className="px-4 py-3 text-sm font-bold text-red-600">
                               -¥{totalExpense.toFixed(2)}
                             </td>
-                            <td style={{ width: '40%' }}></td>
+                            <td className="px-4 py-3"></td>
+                            <td></td>
                           </tr>
                         </tfoot>
                       </table>

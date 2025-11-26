@@ -15,6 +15,8 @@ type ProfitLossClientWrapperProps = {
   initialStartDate: string
   initialEndDate: string
   initialBalanceDate?: string
+  storeId?: string
+  storeIds?: string[]
 }
 
 export function ProfitLossClientWrapper({
@@ -22,7 +24,9 @@ export function ProfitLossClientWrapper({
   monthlyData,
   initialStartDate,
   initialEndDate,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeIds
 }: ProfitLossClientWrapperProps) {
   const handleDateChange = useDateRangeNavigation({ basePath: '/profit-loss' })
 
@@ -34,6 +38,8 @@ export function ProfitLossClientWrapper({
       endDate={initialEndDate}
       onDateChange={handleDateChange}
       initialBalanceDate={initialBalanceDate}
+      storeId={storeId}
+      storeIds={storeIds}
     />
   )
 }

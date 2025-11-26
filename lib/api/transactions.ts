@@ -75,27 +75,31 @@ export async function createTransaction(
       }
     }
 
-    // 查询 transaction_categories 表以获取 category_id 和 cash_flow_activity
+    // 查询 transaction_categories 表以获取 category_id、cash_flow_activity 和 transaction_nature
     const { data: categoryData } = await supabase
       .from('transaction_categories')
-      .select('id, cash_flow_activity')
+      .select('id, cash_flow_activity, transaction_nature')
       .eq('company_id', profile.company_id)
       .eq('type', validated.type)
       .eq('name', validated.category)
       .single()
 
-    // 设置 category_id 和 cash_flow_activity
+    // 设置 category_id、cash_flow_activity 和 transaction_nature
     let category_id: string | null = null
     let cash_flow_activity = 'operating'
+    let transaction_nature: 'operating' | 'non_operating' | null = null
 
     if (categoryData) {
       // 如果从数据库找到分类，使用数据库中的数据
       category_id = categoryData.id
       cash_flow_activity = categoryData.cash_flow_activity
+      transaction_nature = categoryData.transaction_nature || null
     } else {
       // 如果数据库中没有找到（迁移未执行或新分类），回退到配置文件
       const mapping = getCategoryMapping(validated.type, validated.category)
       cash_flow_activity = mapping?.activity || 'operating'
+      // 默认为营业内
+      transaction_nature = 'operating'
     }
 
     // 创建交易记录
@@ -108,6 +112,7 @@ export async function createTransaction(
         created_by: user.id,
         date: validated.date || getToday(),
         cash_flow_activity,
+        transaction_nature,
       })
       .select()
       .single()
@@ -269,10 +274,10 @@ export async function updateTransaction(
       const newCategory = data.category || currentTransaction?.category
 
       if (newType && newCategory) {
-        // 查询新的 category_id 和 cash_flow_activity
+        // 查询新的 category_id、cash_flow_activity 和 transaction_nature
         const { data: categoryData } = await supabase
           .from('transaction_categories')
-          .select('id, cash_flow_activity')
+          .select('id, cash_flow_activity, transaction_nature')
           .eq('company_id', profile.company_id)
           .eq('type', newType)
           .eq('name', newCategory)
@@ -281,11 +286,13 @@ export async function updateTransaction(
         if (categoryData) {
           updateData.category_id = categoryData.id
           updateData.cash_flow_activity = categoryData.cash_flow_activity
+          updateData.transaction_nature = categoryData.transaction_nature || null
         } else {
           // 回退到配置文件
           const mapping = getCategoryMapping(newType, newCategory)
           updateData.category_id = null
           updateData.cash_flow_activity = mapping?.activity || 'operating'
+          updateData.transaction_nature = 'operating'  // 默认为营业内
         }
       }
     }

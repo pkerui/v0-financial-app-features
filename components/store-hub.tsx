@@ -14,15 +14,14 @@ import {
   DollarSign,
   BarChart3,
   Settings,
-  Plus,
-  ArrowRight,
   MapPin,
   Phone,
   User,
-  Calendar,
+  LayoutDashboard,
 } from 'lucide-react'
 import Link from 'next/link'
 import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
+import { useRouter } from 'next/navigation'
 
 interface StoreHubProps {
   stores: Store[]
@@ -54,12 +53,18 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
   // 统计数据
   const activeStores = stores.filter(s => s.status === 'active')
 
+  const router = useRouter()
+
   // 处理日期变化
   const handleDateChange = (newStartDate: string, newEndDate: string) => {
     setStartDate(newStartDate)
     setEndDate(newEndDate)
-    // TODO: 这里后续需要重新获取数据
-    console.log('Date range changed:', newStartDate, newEndDate)
+
+    // 更新 URL 参数
+    const params = new URLSearchParams()
+    params.set('startDate', newStartDate)
+    params.set('endDate', newEndDate)
+    router.push(`/stores?${params.toString()}`)
   }
 
   // 按城市分组
@@ -86,39 +91,24 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
               管理和查看所有店铺的运营数据
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            {/* 日期范围选择 */}
+            <DateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              onDateChange={handleDateChange}
+              buttonSize="default"
+              align="end"
+            />
+            <div className="border-l h-8 mx-1" />
             <Link href="/stores/settings">
               <Button variant="outline" className="gap-2">
                 <Settings className="h-4 w-4" />
                 管理设置
               </Button>
             </Link>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              新增店铺
-            </Button>
           </div>
         </div>
-
-        {/* 日期选择器 */}
-        <Card className="bg-muted/50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>数据时间范围：</span>
-              </div>
-              <DateRangePicker
-                startDate={startDate}
-                endDate={endDate}
-                onDateChange={handleDateChange}
-              />
-              <div className="text-sm text-muted-foreground">
-                {startDate} 至 {endDate}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* 总览统计卡片 */}
@@ -171,10 +161,18 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
 
       {/* 视图切换 */}
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'overview' | 'management')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="overview">店铺总览</TabsTrigger>
-          <TabsTrigger value="management">数据汇总</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList className="grid grid-cols-2 w-[400px]">
+            <TabsTrigger value="overview">店铺总览</TabsTrigger>
+            <TabsTrigger value="management">数据汇总</TabsTrigger>
+          </TabsList>
+          <Link href="/dashboard">
+            <Button variant="outline" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              全局总览
+            </Button>
+          </Link>
+        </div>
 
         {/* 店铺总览视图 */}
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -254,24 +252,17 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                         </div>
 
                         {/* 操作按钮 */}
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 gap-1"
-                            disabled
-                          >
-                            <BarChart3 className="h-3.5 w-3.5" />
-                            查看报表
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1"
-                            disabled
-                          >
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </Button>
+                        <div className="pt-2">
+                          <Link href={`/dashboard?store=${store.id}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full gap-1"
+                            >
+                              <BarChart3 className="h-3.5 w-3.5" />
+                              查看详情
+                            </Button>
+                          </Link>
                         </div>
                       </CardContent>
                     </Card>
@@ -288,12 +279,8 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                 <StoreIcon className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">暂无店铺</h3>
                 <p className="text-muted-foreground text-center mb-4">
-                  开始添加您的第一家店铺
+                  请点击右上角"管理设置"添加店铺
                 </p>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  新增店铺
-                </Button>
               </CardContent>
             </Card>
           )}
@@ -327,10 +314,12 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                       <p className="font-semibold">¥0.00</p>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2" disabled>
-                    <BarChart3 className="h-4 w-4" />
-                    查看详细数据
-                  </Button>
+                  <Link href={`/income?startDate=${startDate}&endDate=${endDate}`}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      查看详细数据
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -360,10 +349,12 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                       <p className="font-semibold">¥0.00</p>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2" disabled>
-                    <BarChart3 className="h-4 w-4" />
-                    查看详细数据
-                  </Button>
+                  <Link href={`/expense?startDate=${startDate}&endDate=${endDate}`}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      查看详细数据
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -399,7 +390,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                   </div>
                   <Button variant="outline" className="w-full gap-2" disabled>
                     <BarChart3 className="h-4 w-4" />
-                    查看详细数据
+                    即将上线
                   </Button>
                 </div>
               </CardContent>
@@ -432,7 +423,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                   </div>
                   <Button variant="outline" className="w-full gap-2" disabled>
                     <BarChart3 className="h-4 w-4" />
-                    查看详细数据
+                    即将上线
                   </Button>
                 </div>
               </CardContent>

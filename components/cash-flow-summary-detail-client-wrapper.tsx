@@ -28,13 +28,17 @@ type CashFlowSummaryDetailClientWrapperProps = {
   allTransactions: Transaction[]
   dateValidation: DateRangeValidationResult
   beginningBalance?: number
+  storeId?: string
+  storeName?: string
 }
 
 export function CashFlowSummaryDetailClientWrapper({
   detailType,
   allTransactions,
   dateValidation,
-  beginningBalance = 0
+  beginningBalance = 0,
+  storeId,
+  storeName
 }: CashFlowSummaryDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
   const handleDateChange = useDateRangeNavigation()
@@ -48,6 +52,8 @@ export function CashFlowSummaryDetailClientWrapper({
       onDateChange={handleDateChange}
       initialBalanceDate={dateValidation.initialBalanceDate}
       beginningBalance={beginningBalance}
+      storeId={storeId}
+      storeName={storeName}
     />
   )
 }

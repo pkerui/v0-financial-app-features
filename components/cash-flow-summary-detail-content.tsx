@@ -26,6 +26,8 @@ type CashFlowSummaryDetailContentProps = {
   onDateChange: (startDate: string, endDate: string) => void
   initialBalanceDate?: string
   beginningBalance?: number
+  storeId?: string
+  storeName?: string
 }
 
 const detailNames = {
@@ -41,8 +43,14 @@ export function CashFlowSummaryDetailContent({
   endDate,
   onDateChange,
   initialBalanceDate,
-  beginningBalance = 0
+  beginningBalance = 0,
+  storeId,
+  storeName
 }: CashFlowSummaryDetailContentProps) {
+  // 构建返回链接
+  const dashboardUrl = storeId ? `/dashboard?store=${storeId}` : '/dashboard'
+  const cashFlowUrl = storeId ? `/cash-flow?store=${storeId}` : '/cash-flow'
+
   // 不再需要客户端过滤日期，因为服务器端已经过滤了
   const filteredTransactions = allTransactions
 
@@ -165,19 +173,21 @@ export function CashFlowSummaryDetailContent({
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              <Link href="/cash-flow">
+              <Link href={cashFlowUrl}>
                 <Button variant="outline" size="icon">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/dashboard">
+              <Link href={dashboardUrl}>
                 <Button variant="outline" size="sm">
-                  回到总览
+                  返回总览
                 </Button>
               </Link>
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{detailNames[detailType]}明细</h1>
+              <h1 className="text-3xl font-bold">
+                {detailNames[detailType]}明细{storeName ? ` - ${storeName}` : ''}
+              </h1>
               <p className="text-muted-foreground">
                 查看交易记录明细（{startDate} 至 {endDate}）
               </p>

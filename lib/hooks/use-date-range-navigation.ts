@@ -82,8 +82,10 @@ export function useDateRangeNavigation(
 
   const handleDateChange = useCallback((newStartDate: string, newEndDate: string) => {
     // 1. 构建新的URL参数
+    // 注意：动态读取当前的 searchParams，而不是使用闭包中的值
+    const currentParams = new URLSearchParams(window.location.search)
     const params = preserveOtherParams
-      ? new URLSearchParams(searchParams.toString())
+      ? currentParams
       : new URLSearchParams()
 
     params.set('startDate', newStartDate)
@@ -95,7 +97,7 @@ export function useDateRangeNavigation(
 
     // 3. 使用router.push进行平滑导航
     router.push(newUrl)
-  }, [router, searchParams, basePath, preserveOtherParams])
+  }, [router, basePath, preserveOtherParams])
 
   return handleDateChange
 }

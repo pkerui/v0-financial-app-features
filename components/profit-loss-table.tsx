@@ -47,12 +47,6 @@ const expenseCategoryNames: Record<string, string> = {
   'other_expense': '其他支出',
 }
 
-// 录入方式映射
-const inputMethodNames: Record<string, string> = {
-  'voice': '语音录入',
-  'text': '文本录入',
-  'manual': '手动录入',
-}
 
 export function ProfitLossTable({ transactions }: ProfitLossTableProps) {
   const router = useRouter()
@@ -188,21 +182,20 @@ export function ProfitLossTable({ transactions }: ProfitLossTableProps) {
 
   // 导出CSV
   const exportToCSV = () => {
-    const headers = ['日期', '类型', '分类', '金额', '描述', '录入方式']
+    const headers = ['日期', '类型', '分类', '金额', '描述']
     const rows = filteredAndSortedTransactions.map(t => [
       new Date(t.date).toLocaleDateString('zh-CN'),
       t.type === 'income' ? '收入' : '支出',
       getCategoryName(t.type, t.category),
       t.amount.toFixed(2),
       t.description || '',
-      inputMethodNames[t.input_method || ''] || t.input_method || '',
     ])
 
     // 添加合计行
     const summaryRows = [
-      ['', '', '收入合计', totalIncome.toFixed(2), '', ''],
-      ['', '', '支出合计', totalExpense.toFixed(2), '', ''],
-      ['', '', '净利润', netProfit.toFixed(2), '', ''],
+      ['', '', '收入合计', totalIncome.toFixed(2), ''],
+      ['', '', '支出合计', totalExpense.toFixed(2), ''],
+      ['', '', '净利润', netProfit.toFixed(2), ''],
     ]
 
     const csvContent = [

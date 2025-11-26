@@ -16,6 +16,8 @@ type CashFlowClientWrapperProps = {
   initialStartDate: string
   initialEndDate: string
   initialBalanceDate?: string
+  storeId?: string
+  storeIds?: string[]
 }
 
 export function CashFlowClientWrapper({
@@ -23,7 +25,9 @@ export function CashFlowClientWrapper({
   monthlyData,
   initialStartDate,
   initialEndDate,
-  initialBalanceDate
+  initialBalanceDate,
+  storeId,
+  storeIds
 }: CashFlowClientWrapperProps) {
   const handleDateChange = useDateRangeNavigation({ basePath: '/cash-flow' })
 
@@ -35,6 +39,8 @@ export function CashFlowClientWrapper({
       endDate={initialEndDate}
       onDateChange={handleDateChange}
       initialBalanceDate={initialBalanceDate}
+      storeId={storeId}
+      storeIds={storeIds}
     />
   )
 }
