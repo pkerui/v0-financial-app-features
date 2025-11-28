@@ -15,6 +15,8 @@ export interface Store {
   address?: string
   manager_name?: string
   manager_phone?: string
+  initial_balance_date?: string
+  initial_balance?: number
   created_at: string
   updated_at: string
 }
@@ -29,6 +31,8 @@ export interface CreateStoreData {
   address?: string
   manager_name?: string
   manager_phone?: string
+  initial_balance_date?: string
+  initial_balance?: number
 }
 
 export interface UpdateStoreData {
@@ -41,6 +45,8 @@ export interface UpdateStoreData {
   address?: string
   manager_name?: string
   manager_phone?: string
+  initial_balance_date?: string
+  initial_balance?: number
 }
 
 /**
@@ -222,6 +228,8 @@ export async function createStore(
         address: storeData.address,
         manager_name: storeData.manager_name,
         manager_phone: storeData.manager_phone,
+        initial_balance_date: storeData.initial_balance_date,
+        initial_balance: storeData.initial_balance,
       })
       .select()
       .single()
@@ -403,5 +411,102 @@ export async function deleteStore(id: string): Promise<{ success: boolean; error
   } catch (error) {
     console.error('Error deleting store:', error)
     return { success: false, error: '删除店铺失败' }
+  }
+}
+
+/**
+ * Get the earliest initial balance date among all stores
+ * Returns null if no stores have initial_balance_date set
+ */
+export async function getEarliestStoreInitialBalanceDate(): Promise<{
+  data: string | null
+  error: string | null
+}> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { data: null, error: '未授权访问' }
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return { data: null, error: '无法获取用户信息' }
+    }
+
+    // Get earliest initial_balance_date from all stores
+    const { data, error } = await supabase
+      .from('stores')
+      .select('initial_balance_date')
+      .eq('company_id', profile.company_id)
+      .not('initial_balance_date', 'is', null)
+      .order('initial_balance_date', { ascending: true })
+      .limit(1)
+      .single()
+
+    if (error) {
+      // No stores with initial_balance_date - this is not an error
+      if (error.code === 'PGRST116') {
+        return { data: null, error: null }
+      }
+      return { data: null, error: `获取店铺期初日期失败: ${error.message}` }
+    }
+
+    return { data: data?.initial_balance_date || null, error: null }
+  } catch (error) {
+    console.error('Error fetching earliest store initial balance date:', error)
+    return { data: null, error: '获取店铺期初日期失败' }
+  }
+}
+
+/**
+ * Get initial balance date for a specific store
+ */
+export async function getStoreInitialBalanceDate(storeId: string): Promise<{
+  data: { initial_balance_date: string | null; initial_balance: number | null } | null
+  error: string | null
+}> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { data: null, error: '未授权访问' }
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return { data: null, error: '无法获取用户信息' }
+    }
+
+    const { data, error } = await supabase
+      .from('stores')
+      .select('initial_balance_date, initial_balance')
+      .eq('id', storeId)
+      .eq('company_id', profile.company_id)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { data: null, error: '店铺不存在' }
+      }
+      return { data: null, error: `获取店铺期初日期失败: ${error.message}` }
+    }
+
+    return { data, error: null }
+  } catch (error) {
+    console.error('Error fetching store initial balance date:', error)
+    return { data: null, error: '获取店铺期初日期失败' }
   }
 }

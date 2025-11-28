@@ -22,6 +22,13 @@ type Transaction = {
   date: string
   transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
   include_in_profit_loss?: boolean | null
+  store_id?: string
+  store_name?: string
+}
+
+type StoreOption = {
+  id: string
+  name: string
 }
 
 type ProfitLossDetailClientWrapperProps = {
@@ -30,6 +37,12 @@ type ProfitLossDetailClientWrapperProps = {
   dateValidation: DateRangeValidationResult
   storeId?: string
   storeName?: string
+  /** 多店模式下的店铺ID数组 */
+  storeIds?: string[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
+  /** 可用店铺列表（用于筛选下拉框，仅全局模式） */
+  availableStores?: StoreOption[]
 }
 
 export function ProfitLossDetailClientWrapper({
@@ -37,7 +50,10 @@ export function ProfitLossDetailClientWrapper({
   allTransactions,
   dateValidation,
   storeId,
-  storeName
+  storeName,
+  storeIds,
+  isGlobalMode,
+  availableStores = []
 }: ProfitLossDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
   const handleDateChange = useDateRangeNavigation()
@@ -52,6 +68,9 @@ export function ProfitLossDetailClientWrapper({
       initialBalanceDate={dateValidation.initialBalanceDate}
       storeId={storeId}
       storeName={storeName}
+      storeIds={storeIds}
+      isGlobalMode={isGlobalMode}
+      availableStores={availableStores}
     />
   )
 }

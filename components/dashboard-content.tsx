@@ -180,7 +180,7 @@ export function DashboardContent({
               {currentStore
                 ? `${currentStore.name} - 总览`
                 : selectedStores.length > 1
-                ? `多店汇总 (${selectedStores.length}家)`
+                ? `全局总览-多店汇总统计 (${selectedStores.length}家)`
                 : '全局总览'
               }
             </h1>
@@ -200,12 +200,15 @@ export function DashboardContent({
                 返回店铺管理
               </Button>
             </Link>
-            <Link href={currentStore ? `/voice-entry?store=${currentStore.id}` : '/voice-entry'}>
-              <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Mic className="h-4 w-4" />
-                新增记录
-              </Button>
-            </Link>
+{/* 新增记录按钮 - 仅单店模式显示 */}
+            {currentStore && (
+              <Link href={`/voice-entry?store=${currentStore.id}`}>
+                <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
+                  <Mic className="h-4 w-4" />
+                  新增记录
+                </Button>
+              </Link>
+            )}
             <Link href={buildUrl('/settings')}>
               <Button variant="outline" size="icon" title="财务设置">
                 <Settings className="h-4 w-4" />

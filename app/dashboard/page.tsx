@@ -11,14 +11,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = await createClient()
   const params = await searchParams
 
-  // 支持两种模式：
+  // 支持三种模式：
   // 1. ?store=id - 单店模式（向后兼容）
   // 2. ?stores=id1,id2,id3 - 多店模式
+  // 3. 无参数 - 全局模式（默认全选所有活跃店铺）
   const singleStoreId = params.store
   const multiStoreIds = params.stores?.split(',').filter(Boolean)
 
+  // 获取所有店铺信息（提前获取，用于默认全选）
+  const { data: allStores } = await getActiveStores()
+
   // 确定选中的店铺ID列表
-  const selectedStoreIds = multiStoreIds || (singleStoreId ? [singleStoreId] : [])
+  // 如果没有指定店铺参数，默认选中所有活跃店铺
+  const selectedStoreIds = multiStoreIds
+    || (singleStoreId ? [singleStoreId] : (allStores?.map(s => s.id) || []))
 
   // 获取当前用户
   const {
@@ -49,10 +55,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     )
   }
 
-  // 获取所有店铺信息
-  const { data: allStores } = await getActiveStores()
-
-  // 获取当前选中的店铺
+  // 获取当前选中的店铺（allStores 已在上面获取）
   const selectedStores = selectedStoreIds.length > 0
     ? allStores?.filter(s => selectedStoreIds.includes(s.id)) || []
     : []

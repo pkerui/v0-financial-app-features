@@ -111,7 +111,7 @@ export function ExpenseAggregationView({
           <CardDescription>全部店铺按分类统计</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>分类</TableHead>
@@ -159,7 +159,7 @@ export function ExpenseAggregationView({
           <CardDescription>按支出从高到低排序</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>排名</TableHead>

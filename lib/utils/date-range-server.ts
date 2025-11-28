@@ -5,11 +5,12 @@
  * 1. 验证日期范围合法性
  * 2. 检查并调整相对于期初余额日期的日期范围
  * 3. 提供统一的日期范围处理逻辑
+ * 4. 支持按店铺或公司获取期初日期
  *
  * 使用场景：在服务器组件中调用，确保日期范围符合财务设置
  */
 
-import { getFinancialSettings } from '@/lib/api/financial-settings'
+import { getStoreInitialBalanceDate, getEarliestStoreInitialBalanceDate } from '@/lib/api/stores'
 import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
 
 /**
@@ -40,10 +41,17 @@ export type DateRangeValidationResult = {
  *
  * @example
  * ```typescript
- * // 在服务器组件中使用
+ * // 在服务器组件中使用（公司级别 - 使用最早店铺期初日期）
  * const validation = await validateDateRange(
  *   params.startDate,
  *   params.endDate
+ * )
+ *
+ * // 单店使用（使用该店铺的期初日期）
+ * const validation = await validateDateRange(
+ *   params.startDate,
+ *   params.endDate,
+ *   { storeId: 'store-uuid' }
  * )
  *
  * // 使用验证后的日期
@@ -66,6 +74,8 @@ export async function validateDateRange(
     defaultStartDate?: string
     /** 默认结束日期（未提供requestedEndDate时使用） */
     defaultEndDate?: string
+    /** 店铺ID - 如果提供则使用该店铺的期初日期，否则使用所有店铺中最早的期初日期 */
+    storeId?: string
   }
 ): Promise<DateRangeValidationResult> {
   // 1. 设置默认日期
@@ -75,26 +85,39 @@ export async function validateDateRange(
   let startDateStr = requestedStartDate || defaultStartDate
   const endDateStr = requestedEndDate || defaultEndDate
 
-  // 2. 获取财务设置
-  const { data: financialSettings } = await getFinancialSettings()
+  // 2. 获取期初日期
+  // 优先级：店铺级别 > 公司最早店铺日期 > 公司级别财务设置
+  let initialBalanceDateStr: string | null = null
+
+  if (options?.storeId) {
+    // 单店模式：使用该店铺的期初日期
+    const { data: storeData } = await getStoreInitialBalanceDate(options.storeId)
+    initialBalanceDateStr = storeData?.initial_balance_date || null
+  } else {
+    // 公司/汇总模式：使用所有店铺中最早的期初日期
+    const { data: earliestDate } = await getEarliestStoreInitialBalanceDate()
+    initialBalanceDateStr = earliestDate
+  }
+
+  // 不再回退到公司级别财务设置，统一使用店铺数据
 
   // 3. 初始化返回结果
   const result: DateRangeValidationResult = {
     startDate: startDateStr,
     endDate: endDateStr,
-    initialBalanceDate: financialSettings?.initial_balance_date,
+    initialBalanceDate: initialBalanceDateStr || undefined,
     dateAdjusted: false,
   }
 
   // 4. 如果有期初余额日期设置，进行验证
-  if (financialSettings?.initial_balance_date) {
+  if (initialBalanceDateStr) {
     const queryStartDate = new Date(startDateStr)
-    const initialBalanceDate = new Date(financialSettings.initial_balance_date)
+    const initialBalanceDate = new Date(initialBalanceDateStr)
 
     // 检查查询起始日期是否早于期初余额日期
     if (queryStartDate < initialBalanceDate) {
       result.originalStartDate = startDateStr
-      result.startDate = financialSettings.initial_balance_date
+      result.startDate = initialBalanceDateStr
       result.dateAdjusted = true
       result.adjustmentReason = '查询起始日期早于期初余额日期，已自动调整'
     }
@@ -114,39 +137,45 @@ export async function validateDateRange(
  *
  * @example
  * ```typescript
- * // 在Next.js服务器组件中使用
+ * // 在Next.js服务器组件中使用（公司汇总 - 使用最早店铺期初日期）
  * export default async function Page({ searchParams }: PageProps) {
  *   const dateValidation = await validateDateRangeFromParams(searchParams)
+ *   // ...
+ * }
  *
- *   // 使用验证后的日期获取数据
- *   const data = await fetchData(
- *     dateValidation.startDate,
- *     dateValidation.endDate
- *   )
- *
- *   return (
- *     <PageWrapper
- *       dateValidation={dateValidation}
- *       data={data}
- *     />
- *   )
+ * // 单店使用（使用该店铺的期初日期）
+ * export default async function Page({ searchParams }: PageProps) {
+ *   const params = await searchParams
+ *   const dateValidation = await validateDateRangeFromParams(searchParams, {
+ *     storeId: params.store
+ *   })
+ *   // ...
  * }
  * ```
  */
 export async function validateDateRangeFromParams(
-  searchParams: Promise<{ startDate?: string; endDate?: string }> | { startDate?: string; endDate?: string },
+  searchParams: Promise<{ startDate?: string; endDate?: string; store?: string }> | { startDate?: string; endDate?: string; store?: string },
   options?: {
     defaultStartDate?: string
     defaultEndDate?: string
+    /** 店铺ID - 如果提供则使用该店铺的期初日期 */
+    storeId?: string
   }
 ): Promise<DateRangeValidationResult> {
   // 处理Promise类型的searchParams（Next.js 15+）
   const params = searchParams instanceof Promise ? await searchParams : searchParams
 
+  // 确定店铺ID：优先使用 options.storeId，其次使用 params.store
+  const storeId = options?.storeId || params.store
+
   return validateDateRange(
     params.startDate,
     params.endDate,
-    options
+    {
+      defaultStartDate: options?.defaultStartDate,
+      defaultEndDate: options?.defaultEndDate,
+      storeId,
+    }
   )
 }
 

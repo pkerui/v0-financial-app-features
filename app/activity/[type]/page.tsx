@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ActivityDetailClientWrapper } from '@/components/activity-detail-client-wrapper'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
+import { type NewStoreCapitalInvestment } from '@/lib/services/cash-flow'
 import { getStoreModeServer } from '@/lib/utils/store-mode'
+import { getActiveStores } from '@/lib/api/stores'
 
 type PageProps = {
   params: Promise<{
@@ -56,17 +58,18 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
 
   // 检测 store 模式
   const searchParamsResolved = await searchParams
-  const { storeId, storeIds } = getStoreModeServer(searchParamsResolved)
+  const { mode, storeId, storeIds } = getStoreModeServer(searchParamsResolved)
+
+  // 获取店铺列表
+  const { data: stores } = await getActiveStores()
+
+  // 判断是否为全局模式
+  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
 
   // 获取店铺信息（如果是单店模式）
   let storeName: string | undefined
   if (storeId) {
-    const { data: store } = await supabase
-      .from('stores')
-      .select('name')
-      .eq('id', storeId)
-      .eq('company_id', profile.company_id)
-      .single()
+    const store = stores?.find(s => s.id === storeId)
     storeName = store?.name
   }
 
@@ -74,11 +77,22 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
   // 获取该活动的交易记录（使用验证后的日期）
+  // 使用 JOIN 获取 transaction_categories.cash_flow_activity，与 cash-flow 页面保持一致
+  // 同时获取店铺信息用于多店模式显示
   let query = supabase
     .from('transactions')
-    .select('*')
+    .select(`
+      *,
+      transaction_categories!category_id (
+        cash_flow_activity,
+        transaction_nature
+      ),
+      stores!store_id (
+        id,
+        name
+      )
+    `)
     .eq('company_id', profile.company_id)
-    .eq('cash_flow_activity', type)
     .gte('date', dateValidation.startDate)
     .lte('date', dateValidation.endDate)
 
@@ -87,9 +101,50 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
     query = query.in('store_id', storeIds)
   }
 
-  const { data: transactions } = await query
+  const { data: rawTransactions } = await query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
+
+  // 按活动类型过滤，并扁平化 cash_flow_activity, transaction_nature 和 store_name
+  const transactions = rawTransactions
+    ?.filter(t => t.transaction_categories?.cash_flow_activity === type)
+    .map(t => ({
+      ...t,
+      cash_flow_activity: t.transaction_categories?.cash_flow_activity,
+      transaction_nature: t.transaction_categories?.transaction_nature,
+      store_name: t.stores?.name || undefined
+    })) || []
+
+  // 准备可用店铺列表（用于筛选下拉框）
+  const availableStores = isGlobalMode && stores
+    ? (mode === 'multi' && storeIds.length > 0
+        ? stores.filter(s => storeIds.includes(s.id))
+        : stores
+      ).map(s => ({ id: s.id, name: s.name }))
+    : []
+
+  // 筹资活动页面需要包含新店资本投入
+  let newStoreCapitalInvestments: NewStoreCapitalInvestment[] = []
+  if (type === 'financing' && isGlobalMode && stores) {
+    const targetStores = mode === 'multi' && storeIds.length > 0
+      ? stores.filter(s => storeIds.includes(s.id))
+      : stores
+
+    targetStores.forEach(store => {
+      const storeInitialDate = store.initial_balance_date
+      if (storeInitialDate && storeInitialDate > dateValidation.startDate && storeInitialDate <= dateValidation.endDate) {
+        // 新店：期初余额日期在查询期间内
+        if (store.initial_balance && store.initial_balance > 0) {
+          newStoreCapitalInvestments.push({
+            storeId: store.id,
+            storeName: store.name,
+            amount: store.initial_balance,
+            date: storeInitialDate
+          })
+        }
+      }
+    })
+  }
 
   return (
     <ActivityDetailClientWrapper
@@ -98,6 +153,10 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
       dateValidation={dateValidation}
       storeId={storeId}
       storeName={storeName}
+      storeIds={storeIds}
+      isGlobalMode={isGlobalMode}
+      availableStores={availableStores}
+      newStoreCapitalInvestments={newStoreCapitalInvestments}
     />
   )
 }

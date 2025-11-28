@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CashFlowSummaryDetailClientWrapper } from '@/components/cash-flow-summary-detail-client-wrapper'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
-import { calculateBeginningBalance } from '@/lib/services/cash-flow'
-import { getFinancialSettings } from '@/lib/api/financial-settings'
+import { type NewStoreCapitalInvestment } from '@/lib/services/cash-flow'
 import { getStoreModeServer } from '@/lib/utils/store-mode'
+import { getActiveStores } from '@/lib/api/stores'
 
 type PageProps = {
   searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
@@ -33,17 +33,18 @@ export default async function TotalOutflowPage({ searchParams }: PageProps) {
 
   // 检测 store 模式
   const params = await searchParams
-  const { storeId, storeIds } = getStoreModeServer(params)
+  const { mode, storeId, storeIds } = getStoreModeServer(params)
+
+  // 获取店铺列表
+  const { data: stores } = await getActiveStores()
+
+  // 判断是否为全局模式
+  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
 
   // 获取店铺信息（如果是单店模式）
   let storeName: string | undefined
   if (storeId) {
-    const { data: store } = await supabase
-      .from('stores')
-      .select('name')
-      .eq('id', storeId)
-      .eq('company_id', profile.company_id)
-      .single()
+    const store = stores?.find(s => s.id === storeId)
     storeName = store?.name
   }
 
@@ -51,12 +52,18 @@ export default async function TotalOutflowPage({ searchParams }: PageProps) {
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
   // 获取所有交易（使用验证后的日期）
+  // 包含店铺信息用于多店模式显示
   let periodQuery = supabase
     .from('transactions')
     .select(`
       *,
       transaction_categories!category_id (
-        cash_flow_activity
+        cash_flow_activity,
+        transaction_nature
+      ),
+      stores!store_id (
+        id,
+        name
       )
     `)
     .eq('company_id', profile.company_id)
@@ -72,43 +79,51 @@ export default async function TotalOutflowPage({ searchParams }: PageProps) {
 
   const flatTransactions = allTransactions?.map(t => ({
     ...t,
-    cash_flow_activity: t.transaction_categories?.cash_flow_activity
+    cash_flow_activity: t.transaction_categories?.cash_flow_activity,
+    transaction_nature: t.transaction_categories?.transaction_nature,
+    store_name: t.stores?.name || undefined
   })) || []
 
-  // 获取期初余额
-  const { data: financialSettings } = await getFinancialSettings()
-  let beginningBalance = 0
-  if (financialSettings) {
-    // 获取所有交易用于计算期初余额
-    let balanceQuery = supabase
-      .from('transactions')
-      .select(`
-        *,
-        transaction_categories!category_id (
-          cash_flow_activity
-        )
-      `)
-      .eq('company_id', profile.company_id)
+  // 总流出页面不需要显示期初余额，传递 0 即可
+  const beginningBalance = 0
 
-    // 如果是单店或多店模式，过滤 store_id
-    if (storeIds.length > 0) {
-      balanceQuery = balanceQuery.in('store_id', storeIds)
-    }
+  // 全局模式下计算新店资本投入（用于说明卡片）
+  let newStoreCapitalInvestments: NewStoreCapitalInvestment[] = []
+  let existingStoreCount = 0
+  let newStoreCount = 0
 
-    const { data: allTxForBalance } = await balanceQuery.order('date', { ascending: false })
+  if (isGlobalMode && stores) {
+    const targetStores = mode === 'multi' && storeIds.length > 0
+      ? stores.filter(s => storeIds.includes(s.id))
+      : stores
 
-    const allTxFlat = allTxForBalance?.map(t => ({
-      ...t,
-      cash_flow_activity: t.transaction_categories?.cash_flow_activity
-    })) || []
-
-    beginningBalance = calculateBeginningBalance(
-      financialSettings.initial_cash_balance,
-      financialSettings.initial_balance_date,
-      dateValidation.startDate,
-      allTxFlat
-    )
+    targetStores.forEach(store => {
+      const storeInitialDate = store.initial_balance_date
+      if (storeInitialDate && storeInitialDate > dateValidation.startDate && storeInitialDate <= dateValidation.endDate) {
+        // 新店：期初余额日期在查询期间内（不含期初当天）
+        newStoreCount++
+        if (store.initial_balance && store.initial_balance > 0) {
+          newStoreCapitalInvestments.push({
+            storeId: store.id,
+            storeName: store.name,
+            amount: store.initial_balance,
+            date: storeInitialDate
+          })
+        }
+      } else if (!storeInitialDate || storeInitialDate <= dateValidation.startDate) {
+        // 老店：期初余额日期在查询开始日期或之前
+        existingStoreCount++
+      }
+    })
   }
+
+  // 准备可用店铺列表（用于筛选下拉框）
+  const availableStores = isGlobalMode && stores
+    ? (mode === 'multi' && storeIds.length > 0
+        ? stores.filter(s => storeIds.includes(s.id))
+        : stores
+      ).map(s => ({ id: s.id, name: s.name }))
+    : []
 
   return (
     <CashFlowSummaryDetailClientWrapper
@@ -118,6 +133,12 @@ export default async function TotalOutflowPage({ searchParams }: PageProps) {
       beginningBalance={beginningBalance}
       storeId={storeId}
       storeName={storeName}
+      storeIds={storeIds}
+      isGlobalMode={isGlobalMode}
+      newStoreCapitalInvestments={newStoreCapitalInvestments}
+      existingStoreCount={existingStoreCount}
+      newStoreCount={newStoreCount}
+      availableStores={availableStores}
     />
   )
 }

@@ -147,7 +147,7 @@ export function MultiStoreSelector({
                     />
                     <div className="flex-1 text-sm">
                       <div className="font-medium">
-                        {store.code ? `${store.code} - ${store.name}` : store.name}
+                        {store.name}
                       </div>
                       {store.city && (
                         <div className="text-xs text-muted-foreground">
@@ -173,7 +173,7 @@ export function MultiStoreSelector({
               className="gap-1 pr-1"
             >
               <span className="text-xs">
-                {store.code || store.name}
+                {store.name}
               </span>
               <button
                 onClick={(e) => handleRemoveStore(store.id, e)}

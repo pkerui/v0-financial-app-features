@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TransactionsTableAll } from '@/components/transactions-table-all'
+import { StoreComparisonTable } from '@/components/store-comparison-table'
+import { StoreComparisonChart } from '@/components/store-comparison-chart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Plus } from 'lucide-react'
 import Link from 'next/link'
@@ -62,6 +64,16 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const { mode, storeId, storeIds } = getStoreModeServer(params)
 
+  // 判断是否为全局模式（多店或全部店铺）
+  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
+
+  // 确定要查询的店铺列表
+  const targetStores = isGlobalMode
+    ? (mode === 'multi' && storeIds.length > 0
+        ? stores.filter(s => storeIds.includes(s.id))
+        : stores)
+    : (storeId ? stores?.filter(s => s.id === storeId) : stores) || []
+
   // 构建查询
   let query = supabase
     .from('transactions')
@@ -78,7 +90,16 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
     .lte('date', dateValidation.endDate)
 
   // 根据店铺模式过滤
-  if (storeIds.length > 0) {
+  if (isGlobalMode) {
+    // 全局模式：查询所有选中店铺的交易
+    const targetStoreIds = targetStores.map(s => s.id)
+    if (targetStoreIds.length > 0) {
+      query = query.in('store_id', targetStoreIds)
+    }
+  } else if (storeId) {
+    // 单店模式：只查询单个店铺
+    query = query.eq('store_id', storeId)
+  } else if (storeIds.length > 0) {
     query = query.in('store_id', storeIds)
   }
 
@@ -121,45 +142,87 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
   // 构建新增记录链接
   const voiceEntryUrl = storeId ? `/voice-entry?store=${storeId}` : '/voice-entry'
 
+  // 构建页面标题
+  const pageTitle = isGlobalMode
+    ? `交易汇总 - ${mode === 'multi' ? `${targetStores.length}家店铺` : '全部店铺'}`
+    : `交易汇总${currentStore ? ` - ${currentStore.name}` : ''}`
+
+  const pageDescription = isGlobalMode
+    ? (mode === 'multi'
+        ? `查看${targetStores.map(s => s.name).join('、')}的交易记录`
+        : '查看所有店铺的交易记录')
+    : (currentStore
+        ? `查看和管理${currentStore.name}的所有交易记录`
+        : '查看和管理所有交易记录')
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link href={dashboardUrl}>
-              <Button variant="outline" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                返回总览
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-1">
+              <Link href={dashboardUrl}>
+                <Button variant="outline" size="sm" className="gap-1 w-full">
+                  <ArrowLeft className="h-4 w-4" />
+                  返回
+                </Button>
+              </Link>
+              <Link href="/stores">
+                <Button variant="outline" size="sm" className="w-full">
+                  店铺管理
+                </Button>
+              </Link>
+            </div>
             <div>
               <h1 className="text-3xl font-bold text-foreground">
-                交易汇总{currentStore ? ` - ${currentStore.name}` : ''}
+                {pageTitle}
               </h1>
               <p className="text-muted-foreground">
-                {currentStore
-                  ? `查看和管理${currentStore.name}的所有交易记录`
-                  : '查看和管理所有交易记录'
-                }
+                {pageDescription}
               </p>
             </div>
           </div>
-          <Link href={voiceEntryUrl}>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              新增记录
-            </Button>
-          </Link>
+          {/* 新增记录按钮 - 仅单店模式显示 */}
+          {!isGlobalMode && (
+            <Link href={voiceEntryUrl}>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                新增记录
+              </Button>
+            </Link>
+          )}
         </div>
 
-        {/* Table */}
+        {/* 交易表格 */}
         <TransactionsTableAll
           transactions={transactions || []}
           initialStartDate={dateValidation.startDate}
           initialEndDate={dateValidation.endDate}
           categories={allCategories || []}
+          initialBalanceDate={dateValidation.initialBalanceDate}
+          stores={stores || []}
+          showStoreColumn={isGlobalMode}
         />
+
+        {/* 多店对比区域 - 仅全局模式显示 */}
+        {isGlobalMode && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            {/* 左侧：店铺合计对比表 */}
+            <StoreComparisonTable
+              transactions={transactions || []}
+              stores={targetStores || []}
+              tableType="all"
+            />
+            {/* 右侧：饼状图 */}
+            <StoreComparisonChart
+              transactions={transactions || []}
+              stores={targetStores || []}
+              chartType="all"
+              dateRangeLabel={`${dateValidation.startDate} 至 ${dateValidation.endDate}`}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

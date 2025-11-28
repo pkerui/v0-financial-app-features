@@ -18,15 +18,22 @@ import {
   Phone,
   User,
   LayoutDashboard,
+  List,
 } from 'lucide-react'
 import Link from 'next/link'
 import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
 import { useRouter } from 'next/navigation'
+import { SummaryCards } from '@/components/store-hub/summary-cards'
+import type { StoreHubMetrics, SingleStoreMetrics } from '@/lib/features/store-hub'
 
 interface StoreHubProps {
   stores: Store[]
   initialStartDate?: string
   initialEndDate?: string
+  metrics?: StoreHubMetrics
+  storeMetrics?: SingleStoreMetrics[]
+  /** 最早店铺期初日期，用于限制日期选择器 */
+  minDate?: string
 }
 
 const statusColors: Record<string, string> = {
@@ -43,7 +50,14 @@ const statusLabels: Record<string, string> = {
   closed: '已关闭',
 }
 
-export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubProps) {
+// 格式化金额，负值显示为 -¥xxx
+const formatAmount = (value: number, decimals: number = 2): string => {
+  const absValue = Math.abs(value)
+  const formatted = absValue.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  return value < 0 ? `-¥${formatted}` : `¥${formatted}`
+}
+
+export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, storeMetrics, minDate }: StoreHubProps) {
   const [viewMode, setViewMode] = useState<'overview' | 'management'>('overview')
 
   // 日期状态
@@ -99,6 +113,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
               onDateChange={handleDateChange}
               buttonSize="default"
               align="end"
+              minDate={minDate}
             />
             <div className="border-l h-8 mx-1" />
             <Link href="/stores/settings">
@@ -112,52 +127,56 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
       </div>
 
       {/* 总览统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <StoreIcon className="h-4 w-4" />
-              总店铺数
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{stores.length}</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {activeStores.length} 家营业中
-            </p>
-          </CardContent>
-        </Card>
+      {metrics ? (
+        <SummaryCards metrics={metrics} startDate={startDate} endDate={endDate} />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <StoreIcon className="h-4 w-4" />
+                总店铺数
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{stores.length}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {activeStores.length} 家营业中
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              总计收入
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">¥0.00</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              全部店铺合计
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                总计收入
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">¥0.00</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                加载中...
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingDown className="h-4 w-4" />
-              总计支出
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600">¥0.00</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              全部店铺合计
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingDown className="h-4 w-4" />
+                总计支出
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">¥0.00</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                加载中...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* 视图切换 */}
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'overview' | 'management')}>
@@ -167,7 +186,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
             <TabsTrigger value="management">数据汇总</TabsTrigger>
           </TabsList>
           <Link href="/dashboard">
-            <Button variant="outline" className="gap-2">
+            <Button className="gap-2 bg-primary hover:bg-primary/90 px-8">
               <LayoutDashboard className="h-4 w-4" />
               全局总览
             </Button>
@@ -235,25 +254,39 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                           )}
                         </div>
 
-                        {/* 模拟数据卡片 - 实际数据需要后续集成 */}
-                        <div className="border-t pt-3 space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">本月收入</span>
-                            <span className="font-semibold text-green-600">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">本月支出</span>
-                            <span className="font-semibold text-red-600">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">净利润</span>
-                            <span className="font-semibold">¥0.00</span>
-                          </div>
-                        </div>
+                        {/* 店铺财务数据 */}
+                        {(() => {
+                          const storeData = storeMetrics?.find(m => m.storeId === store.id)
+                          const income = storeData?.totalIncome || 0
+                          const expense = storeData?.totalExpense || 0
+                          const profit = storeData?.netProfit || 0
+                          return (
+                            <div className="border-t pt-3 space-y-2">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">期间收入</span>
+                                <span className="font-semibold text-green-600">
+                                  ¥{income.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">期间支出</span>
+                                <span className="font-semibold text-red-600">
+                                  ¥{expense.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">净利润</span>
+                                <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  ¥{profit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })()}
 
                         {/* 操作按钮 */}
                         <div className="pt-2">
-                          <Link href={`/dashboard?store=${store.id}`}>
+                          <Link href={`/dashboard?store=${store.id}&startDate=${startDate}&endDate=${endDate}`}>
                             <Button
                               variant="outline"
                               size="sm"
@@ -288,68 +321,47 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
 
         {/* 数据汇总视图 */}
         <TabsContent value="management" className="space-y-6 mt-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* 收入汇总卡片 */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* 收支表汇总卡片 */}
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  收入汇总
+                  <List className="h-5 w-5 text-orange-600" />
+                  收支表汇总
                 </CardTitle>
-                <CardDescription>查看所有店铺的收入数据</CardDescription>
+                <CardDescription>查看所有店铺的交易明细</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">总收入</p>
-                    <p className="text-3xl font-bold text-green-600">¥0.00</p>
+                    <p className="text-sm text-muted-foreground">净收支</p>
+                    {(() => {
+                      const netAmount = (metrics?.totalIncome || 0) - (metrics?.totalExpense || 0)
+                      return (
+                        <p className={`text-3xl font-bold ${netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatAmount(netAmount)}
+                        </p>
+                      )
+                    })()}
                   </div>
-                  <div className="flex gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="text-muted-foreground">交易笔数</p>
-                      <p className="font-semibold">0</p>
+                      <p className="text-muted-foreground text-xs">总收入</p>
+                      <p className="text-base font-semibold text-green-600">
+                        {formatAmount(metrics?.totalIncome || 0, 0)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">平均每店</p>
-                      <p className="font-semibold">¥0.00</p>
+                      <p className="text-muted-foreground text-xs">总支出</p>
+                      <p className="text-base font-semibold text-red-600">
+                        {formatAmount(metrics?.totalExpense || 0, 0)}
+                      </p>
                     </div>
                   </div>
-                  <Link href={`/income?startDate=${startDate}&endDate=${endDate}`}>
-                    <Button variant="outline" className="w-full gap-2">
-                      <BarChart3 className="h-4 w-4" />
-                      查看详细数据
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 支出汇总卡片 */}
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-600" />
-                  支出汇总
-                </CardTitle>
-                <CardDescription>查看所有店铺的支出数据</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">总支出</p>
-                    <p className="text-3xl font-bold text-red-600">¥0.00</p>
+                  <div className="text-sm text-foreground border-t pt-2">
+                    共 {metrics?.totalCount || 0} 笔交易 · {activeStores.length} 家店铺
                   </div>
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">交易笔数</p>
-                      <p className="font-semibold">0</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">平均每店</p>
-                      <p className="font-semibold">¥0.00</p>
-                    </div>
-                  </div>
-                  <Link href={`/expense?startDate=${startDate}&endDate=${endDate}`}>
+                  <Link href={`/transactions?stores=${activeStores.map(s => s.id).join(',')}&startDate=${startDate}&endDate=${endDate}`}>
                     <Button variant="outline" className="w-full gap-2">
                       <BarChart3 className="h-4 w-4" />
                       查看详细数据
@@ -371,27 +383,40 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">净现金流</p>
-                    <p className="text-3xl font-bold">¥0.00</p>
+                    <p className="text-sm text-muted-foreground">期末余额</p>
+                    <p className={`text-3xl font-bold ${(metrics?.endingBalance || 0) >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+                      {formatAmount(metrics?.endingBalance || 0)}
+                    </p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <p className="text-muted-foreground text-xs">经营</p>
-                      <p className="font-semibold">¥0</p>
+                      <p className="text-muted-foreground text-xs">经营活动</p>
+                      <p className={`text-base font-semibold ${(metrics?.operatingCashFlow || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatAmount(metrics?.operatingCashFlow || 0, 0)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">投资</p>
-                      <p className="font-semibold">¥0</p>
+                      <p className="text-muted-foreground text-xs">投资活动</p>
+                      <p className={`text-base font-semibold ${(metrics?.investingCashFlow || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatAmount(metrics?.investingCashFlow || 0, 0)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">筹资</p>
-                      <p className="font-semibold">¥0</p>
+                      <p className="text-muted-foreground text-xs">筹资活动</p>
+                      <p className={`text-base font-semibold ${(metrics?.financingCashFlow || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatAmount(metrics?.financingCashFlow || 0, 0)}
+                      </p>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2" disabled>
-                    <BarChart3 className="h-4 w-4" />
-                    即将上线
-                  </Button>
+                  <div className="text-sm text-foreground border-t pt-2">
+                    期初余额: {formatAmount(metrics?.beginningBalance || 0)}
+                  </div>
+                  <Link href={`/cash-flow?startDate=${startDate}&endDate=${endDate}`}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      查看详细数据
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -409,22 +434,44 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-muted-foreground">净利润</p>
-                    <p className="text-3xl font-bold">¥0.00</p>
+                    <p className={`text-3xl font-bold ${(metrics?.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatAmount(metrics?.netProfit || 0)}
+                    </p>
                   </div>
-                  <div className="flex gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <p className="text-muted-foreground">营业利润</p>
-                      <p className="font-semibold">¥0.00</p>
+                      <p className="text-muted-foreground text-xs">营业内损益</p>
+                      <p className={`text-base font-semibold ${(metrics?.operatingProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatAmount(metrics?.operatingProfit || 0, 0)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">利润率</p>
-                      <p className="font-semibold">0.0%</p>
+                      <p className="text-muted-foreground text-xs">营业外损益</p>
+                      {(() => {
+                        const nonOperatingNet = (metrics?.nonOperatingIncome || 0) - (metrics?.nonOperatingExpense || 0)
+                        return (
+                          <p className={`text-base font-semibold ${nonOperatingNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatAmount(nonOperatingNet, 0)}
+                          </p>
+                        )
+                      })()}
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">所得税</p>
+                      <p className="text-base font-semibold text-red-600">
+                        {formatAmount(-(metrics?.incomeTax || 0), 0)}
+                      </p>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2" disabled>
-                    <BarChart3 className="h-4 w-4" />
-                    即将上线
-                  </Button>
+                  <div className="text-sm text-foreground border-t pt-2">
+                    营业收入: {formatAmount(metrics?.revenue || 0, 0)} · 营业成本: {formatAmount(-(metrics?.cost || 0), 0)}
+                  </div>
+                  <Link href={`/profit-loss?startDate=${startDate}&endDate=${endDate}`}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      查看详细数据
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -434,8 +481,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate }: StoreHubP
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="pt-6">
               <p className="text-sm text-blue-800">
-                💡 <strong>提示：</strong>数据汇总功能正在开发中，目前显示的是模拟数据。
-                完成后您可以在此查看所有店铺的财务报表汇总。
+                提示：点击"查看详细数据"按钮可跳转至对应的全局汇总页面，日期范围将自动同步。
               </p>
             </CardContent>
           </Card>

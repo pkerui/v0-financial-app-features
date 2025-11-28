@@ -14,6 +14,38 @@ type Transaction = {
   description?: string
   category_id?: string
   cash_flow_activity?: 'operating' | 'investing' | 'financing'
+  store_id?: string
+}
+
+// 店铺信息类型
+export interface StoreInfo {
+  id: string
+  name: string
+  initial_balance: number
+  initial_balance_date: string | null
+}
+
+// 新店资本投入信息
+export interface NewStoreCapitalInvestment {
+  storeId: string
+  storeName: string
+  amount: number
+  date: string  // 开业日期
+}
+
+// 合并现金流结果（扩展基础 CashFlowData）
+export interface ConsolidatedCashFlowData extends CashFlowData {
+  // 新店资本投入列表（用于备注说明）
+  newStoreCapitalInvestments: NewStoreCapitalInvestment[]
+  // 各店铺明细
+  storeBreakdown: Array<{
+    storeId: string
+    storeName: string
+    beginningBalance: number
+    endingBalance: number
+    netCashFlow: number
+    isNewStore: boolean
+  }>
 }
 
 /**
@@ -371,4 +403,317 @@ export function calculateBeginningBalance(
   }, 0)
 
   return initialCashBalance + cashFlowBeforeQuery
+}
+
+/**
+ * 计算多店合并现金流量表
+ *
+ * 合并逻辑：
+ * 1. 合并期初余额：只计算查询开始日已存在的店铺
+ * 2. 新店期初余额：计入"筹资活动-资本投入"
+ * 3. 现金流变动：各店只计算其存在期间的流量
+ * 4. 合并期末余额：所有店铺期末余额之和
+ */
+export function calcConsolidatedCashFlow(
+  transactions: Transaction[],
+  stores: StoreInfo[],
+  queryStartDate: string,
+  queryEndDate: string
+): ConsolidatedCashFlowData {
+  const queryStart = new Date(queryStartDate)
+  const queryEnd = new Date(queryEndDate)
+
+  // 分类店铺：已存在店铺 vs 新开店铺
+  const existingStores: StoreInfo[] = []
+  const newStores: StoreInfo[] = []
+
+  stores.forEach(store => {
+    if (!store.initial_balance_date) {
+      // 没有设置期初日期的店铺，视为已存在
+      existingStores.push(store)
+    } else {
+      const storeStartDate = new Date(store.initial_balance_date)
+      if (storeStartDate <= queryStart) {
+        // 店铺在查询开始前已存在
+        existingStores.push(store)
+      } else if (storeStartDate <= queryEnd) {
+        // 店铺在查询期间内开业（新店）
+        newStores.push(store)
+      }
+      // 查询期间后开业的店铺不计入
+    }
+  })
+
+  // 1. 计算合并期初余额（已存在店铺）
+  let consolidatedBeginningBalance = 0
+  const storeBreakdown: ConsolidatedCashFlowData['storeBreakdown'] = []
+
+  existingStores.forEach(store => {
+    // 获取该店铺的所有交易
+    const storeTransactions = transactions.filter(t => t.store_id === store.id)
+
+    // 计算该店铺在查询开始日的余额
+    const storeBeginningBalance = store.initial_balance_date
+      ? calculateBeginningBalance(
+          store.initial_balance,
+          store.initial_balance_date,
+          queryStartDate,
+          storeTransactions
+        )
+      : store.initial_balance
+
+    consolidatedBeginningBalance += storeBeginningBalance
+
+    // 计算该店铺在查询期间的现金流
+    const periodTransactions = storeTransactions.filter(t => {
+      const txDate = new Date(t.date)
+      return txDate >= queryStart && txDate <= queryEnd
+    })
+    const storeCashFlow = calculateCashFlow(periodTransactions, 0)
+    const storeEndingBalance = storeBeginningBalance + storeCashFlow.summary.netIncrease
+
+    storeBreakdown.push({
+      storeId: store.id,
+      storeName: store.name,
+      beginningBalance: storeBeginningBalance,
+      endingBalance: storeEndingBalance,
+      netCashFlow: storeCashFlow.summary.netIncrease,
+      isNewStore: false
+    })
+  })
+
+  // 2. 处理新店资本投入
+  const newStoreCapitalInvestments: NewStoreCapitalInvestment[] = []
+  let totalNewStoreCapital = 0
+
+  newStores.forEach(store => {
+    // 新店期初余额作为资本投入
+    newStoreCapitalInvestments.push({
+      storeId: store.id,
+      storeName: store.name,
+      amount: store.initial_balance,
+      date: store.initial_balance_date!
+    })
+    totalNewStoreCapital += store.initial_balance
+
+    // 获取新店在开业后的交易
+    const storeTransactions = transactions.filter(t => t.store_id === store.id)
+    const storeStartDate = new Date(store.initial_balance_date!)
+
+    const periodTransactions = storeTransactions.filter(t => {
+      const txDate = new Date(t.date)
+      return txDate >= storeStartDate && txDate <= queryEnd
+    })
+
+    const storeCashFlow = calculateCashFlow(periodTransactions, 0)
+    const storeEndingBalance = store.initial_balance + storeCashFlow.summary.netIncrease
+
+    storeBreakdown.push({
+      storeId: store.id,
+      storeName: store.name,
+      beginningBalance: store.initial_balance,
+      endingBalance: storeEndingBalance,
+      netCashFlow: storeCashFlow.summary.netIncrease,
+      isNewStore: true
+    })
+  })
+
+  // 3. 计算所有店铺在查询期间的交易现金流
+  const allStoreIds = [...existingStores, ...newStores].map(s => s.id)
+  const periodTransactions = transactions.filter(t => {
+    if (!t.store_id || !allStoreIds.includes(t.store_id)) return false
+    const txDate = new Date(t.date)
+
+    // 对于新店，只计算开业后的交易
+    const store = newStores.find(s => s.id === t.store_id)
+    if (store && store.initial_balance_date) {
+      const storeStartDate = new Date(store.initial_balance_date)
+      return txDate >= storeStartDate && txDate <= queryEnd
+    }
+
+    // 对于已存在店铺，计算整个查询期间
+    return txDate >= queryStart && txDate <= queryEnd
+  })
+
+  // 计算基础现金流（不含新店资本投入）
+  const baseCashFlow = calculateCashFlow(periodTransactions, consolidatedBeginningBalance)
+
+  // 4. 将新店资本投入加入筹资活动
+  if (totalNewStoreCapital > 0) {
+    // 添加虚拟的"新店资本投入"流入项
+    baseCashFlow.financing.inflows.unshift({
+      category: '__new_store_capital__',
+      label: '新店资本投入',
+      amount: totalNewStoreCapital,
+      count: newStores.length
+    })
+    baseCashFlow.financing.subtotalInflow += totalNewStoreCapital
+    baseCashFlow.financing.netCashFlow += totalNewStoreCapital
+
+    // 更新汇总
+    baseCashFlow.summary.totalInflow += totalNewStoreCapital
+    baseCashFlow.summary.netIncrease += totalNewStoreCapital
+    baseCashFlow.summary.endingBalance += totalNewStoreCapital
+  }
+
+  // 5. 计算合并期末余额（所有店铺期末余额之和）
+  const consolidatedEndingBalance = storeBreakdown.reduce(
+    (sum, store) => sum + store.endingBalance,
+    0
+  )
+
+  // 返回合并结果
+  return {
+    ...baseCashFlow,
+    summary: {
+      ...baseCashFlow.summary,
+      beginningBalance: consolidatedBeginningBalance,
+      endingBalance: consolidatedEndingBalance
+    },
+    newStoreCapitalInvestments,
+    storeBreakdown
+  }
+}
+
+/**
+ * 计算多店合并的月度现金流数据（用于图表）
+ *
+ * 逻辑：
+ * 1. 期初余额 = 最早店铺开业时的期初余额
+ * 2. 每月计算时，如果有新店开业，将其期初余额计入筹资活动
+ * 3. 正确累计各月的期末余额
+ */
+export function calculateConsolidatedMonthlyCashFlow(
+  transactions: Transaction[],
+  stores: StoreInfo[],
+  startDate: Date,
+  endDate: Date
+): Array<{
+  month: string
+  operating: number
+  investing: number
+  financing: number
+  netIncrease: number
+  beginningBalance: number
+  endingBalance: number
+}> {
+  // 找到最早开业的店铺
+  const storesWithDate = stores
+    .filter(s => s.initial_balance_date)
+    .sort((a, b) => new Date(a.initial_balance_date!).getTime() - new Date(b.initial_balance_date!).getTime())
+
+  if (storesWithDate.length === 0) {
+    // 没有店铺有期初日期，返回空数组
+    return []
+  }
+
+  const earliestStore = storesWithDate[0]
+  const earliestDate = new Date(earliestStore.initial_balance_date!)
+
+  // 按月分组交易
+  const monthlyTransactions = new Map<string, Transaction[]>()
+  transactions.forEach(transaction => {
+    const date = new Date(transaction.date)
+    if (date >= startDate && date <= endDate) {
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const existing = monthlyTransactions.get(monthKey) || []
+      existing.push(transaction)
+      monthlyTransactions.set(monthKey, existing)
+    }
+  })
+
+  // 生成从开始日期到结束日期的所有月份
+  const allMonths: string[] = []
+  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1)
+  while (current <= end) {
+    allMonths.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`)
+    current.setMonth(current.getMonth() + 1)
+  }
+
+  const result: Array<{
+    month: string
+    operating: number
+    investing: number
+    financing: number
+    netIncrease: number
+    beginningBalance: number
+    endingBalance: number
+  }> = []
+
+  // 计算初始期初余额
+  // 如果查询开始日期在最早店铺开业日期之前，期初余额为0
+  // 否则，计算到查询开始日期时的累计余额
+  let currentBeginningBalance = 0
+
+  // 确定在查询开始日期时已存在的店铺及其余额
+  const queryStartDate = startDate
+  stores.forEach(store => {
+    if (!store.initial_balance_date) return
+
+    const storeStartDate = new Date(store.initial_balance_date)
+    if (storeStartDate <= queryStartDate) {
+      // 店铺在查询开始前已存在，计算其在查询开始时的余额
+      const storeTransactions = transactions.filter(t => t.store_id === store.id)
+      const storeBeginningBalance = calculateBeginningBalance(
+        store.initial_balance,
+        store.initial_balance_date,
+        queryStartDate.toISOString().split('T')[0],
+        storeTransactions
+      )
+      currentBeginningBalance += storeBeginningBalance
+    }
+  })
+
+  // 追踪每月新开店铺
+  const processedNewStores = new Set<string>()
+
+  allMonths.forEach(monthKey => {
+    const monthStart = new Date(monthKey + '-01')
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
+
+    // 获取本月交易
+    const monthTransactions = monthlyTransactions.get(monthKey) || []
+
+    // 计算本月基础现金流（不含新店资本投入）
+    const baseCashFlow = calculateCashFlow(monthTransactions, 0)
+
+    // 检查本月是否有新店开业
+    let newStoreCapitalThisMonth = 0
+    stores.forEach(store => {
+      if (!store.initial_balance_date || processedNewStores.has(store.id)) return
+
+      const storeStartDate = new Date(store.initial_balance_date)
+      // 新店开业日期在本月内（不含查询开始日期之前已存在的店铺）
+      if (storeStartDate > queryStartDate && storeStartDate >= monthStart && storeStartDate <= monthEnd) {
+        newStoreCapitalThisMonth += store.initial_balance
+        processedNewStores.add(store.id)
+      }
+    })
+
+    // 筹资活动 = 基础筹资 + 新店资本投入
+    const financingWithNewStore = baseCashFlow.financing.netCashFlow + newStoreCapitalThisMonth
+
+    // 本月净增加额
+    const netIncrease = baseCashFlow.operating.netCashFlow +
+                        baseCashFlow.investing.netCashFlow +
+                        financingWithNewStore
+
+    const endingBalance = currentBeginningBalance + netIncrease
+
+    result.push({
+      month: monthKey,
+      operating: baseCashFlow.operating.netCashFlow,
+      investing: baseCashFlow.investing.netCashFlow,
+      financing: financingWithNewStore,
+      netIncrease: netIncrease,
+      beginningBalance: currentBeginningBalance,
+      endingBalance: endingBalance
+    })
+
+    // 下月期初 = 本月期末
+    currentBeginningBalance = endingBalance
+  })
+
+  return result
 }

@@ -17,6 +17,8 @@ type ProfitLossClientWrapperProps = {
   initialBalanceDate?: string
   storeId?: string
   storeIds?: string[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
 }
 
 export function ProfitLossClientWrapper({
@@ -26,7 +28,8 @@ export function ProfitLossClientWrapper({
   initialEndDate,
   initialBalanceDate,
   storeId,
-  storeIds
+  storeIds,
+  isGlobalMode
 }: ProfitLossClientWrapperProps) {
   const handleDateChange = useDateRangeNavigation({ basePath: '/profit-loss' })
 
@@ -40,6 +43,7 @@ export function ProfitLossClientWrapper({
       initialBalanceDate={initialBalanceDate}
       storeId={storeId}
       storeIds={storeIds}
+      isGlobalMode={isGlobalMode}
     />
   )
 }

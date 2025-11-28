@@ -12,6 +12,7 @@
 import { useDateRangeNavigation } from '@/lib/hooks/use-date-range-navigation'
 import { CashFlowSummaryDetailContent } from '@/components/cash-flow-summary-detail-content'
 import type { DateRangeValidationResult } from '@/lib/utils/date-range-server'
+import type { NewStoreCapitalInvestment } from '@/lib/services/cash-flow'
 
 type Transaction = {
   id: string
@@ -21,6 +22,13 @@ type Transaction = {
   description: string | null
   date: string
   cash_flow_activity?: 'operating' | 'investing' | 'financing' | null
+  store_id?: string
+  store_name?: string
+}
+
+type StoreOption = {
+  id: string
+  name: string
 }
 
 type CashFlowSummaryDetailClientWrapperProps = {
@@ -30,6 +38,18 @@ type CashFlowSummaryDetailClientWrapperProps = {
   beginningBalance?: number
   storeId?: string
   storeName?: string
+  /** 多店模式下的店铺ID数组 */
+  storeIds?: string[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
+  /** 新店资本投入（仅全局模式） */
+  newStoreCapitalInvestments?: NewStoreCapitalInvestment[]
+  /** 已存在店铺数量（仅全局模式） */
+  existingStoreCount?: number
+  /** 新店数量（仅全局模式） */
+  newStoreCount?: number
+  /** 可用店铺列表（用于筛选下拉框，仅全局模式） */
+  availableStores?: StoreOption[]
 }
 
 export function CashFlowSummaryDetailClientWrapper({
@@ -38,7 +58,13 @@ export function CashFlowSummaryDetailClientWrapper({
   dateValidation,
   beginningBalance = 0,
   storeId,
-  storeName
+  storeName,
+  storeIds,
+  isGlobalMode,
+  newStoreCapitalInvestments,
+  existingStoreCount,
+  newStoreCount,
+  availableStores = []
 }: CashFlowSummaryDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
   const handleDateChange = useDateRangeNavigation()
@@ -54,6 +80,12 @@ export function CashFlowSummaryDetailClientWrapper({
       beginningBalance={beginningBalance}
       storeId={storeId}
       storeName={storeName}
+      storeIds={storeIds}
+      isGlobalMode={isGlobalMode}
+      newStoreCapitalInvestments={newStoreCapitalInvestments}
+      existingStoreCount={existingStoreCount}
+      newStoreCount={newStoreCount}
+      availableStores={availableStores}
     />
   )
 }

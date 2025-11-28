@@ -373,8 +373,8 @@ export function StoreManagement({ initialStores }: StoreManagementProps) {
           </Button>
         </div>
       ) : (
-        <div className="rounded-lg border">
-          <Table>
+        <div className="rounded-lg border overflow-x-auto">
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>店铺名称</TableHead>

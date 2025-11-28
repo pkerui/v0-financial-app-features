@@ -10,8 +10,6 @@ import { Label } from '@/components/ui/label'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { useDateRangeNavigation } from '@/lib/hooks/use-date-range-navigation'
 import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
-import { getFinancialSettings } from '@/lib/api/financial-settings'
-import { useEffect, useState as useReactState } from 'react'
 import {
   Table,
   TableBody,
@@ -68,6 +66,13 @@ type Transaction = {
   payment_method?: string | null
   cash_flow_activity?: 'operating' | 'investing' | 'financing' | null
   transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
+  store_id?: string | null
+}
+
+type Store = {
+  id: string
+  name: string
+  code?: string | null
 }
 
 type TransactionCategory = {
@@ -84,6 +89,12 @@ type TransactionsTableProps = {
   initialEndDate?: string
   hideDateControl?: boolean
   categories: TransactionCategory[]
+  /** 期初余额日期 - 用于限制日期选择器的最小日期 */
+  initialBalanceDate?: string
+  /** 店铺列表 - 全局模式下用于显示店铺名称 */
+  stores?: Store[]
+  /** 是否显示店铺列 - 全局模式下为 true */
+  showStoreColumn?: boolean
 }
 
 const categoryNames: Record<string, string> = {
@@ -130,29 +141,19 @@ const allCategoryNames = [
   '水电费', '维修费', '清洁费', '采购费', '人工费', '其他支出'
 ]
 
-export function TransactionsTable({ transactions, type, initialStartDate, initialEndDate, hideDateControl, categories }: TransactionsTableProps) {
+export function TransactionsTable({ transactions, type, initialStartDate, initialEndDate, hideDateControl, categories, initialBalanceDate, stores, showStoreColumn }: TransactionsTableProps) {
   const router = useRouter()
 
   // 使用服务端传入的日期
   const startDate = initialStartDate || getFirstDayOfMonth()
   const endDate = initialEndDate || getToday()
 
-  // 获取期初余额日期
-  const [initialBalanceDate, setInitialBalanceDate] = useReactState<string | undefined>(undefined)
-
-  useEffect(() => {
-    getFinancialSettings().then(({ data }) => {
-      if (data?.initial_balance_date) {
-        setInitialBalanceDate(data.initial_balance_date)
-      }
-    })
-  }, [])
-
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedActivities, setSelectedActivities] = useState<string[]>([])
   const [selectedNatures, setSelectedNatures] = useState<string[]>([])
-  const [sortField, setSortField] = useState<'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature'>('date')
+  const [selectedStores, setSelectedStores] = useState<string[]>([])
+  const [sortField, setSortField] = useState<'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature' | 'store'>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // 使用统一的日期导航Hook
@@ -188,6 +189,8 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
       if (selectedActivities.length > 0 && !selectedActivities.includes(t.cash_flow_activity || '')) return false
       // 交易性质筛选 - 多选
       if (selectedNatures.length > 0 && !selectedNatures.includes(t.transaction_nature || '')) return false
+      // 店铺筛选 - 多选
+      if (selectedStores.length > 0 && !selectedStores.includes(t.store_id || '')) return false
       return true
     })
     .sort((a, b) => {
@@ -195,7 +198,10 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
       if (sortField === 'date') {
         return multiplier * (new Date(a.date).getTime() - new Date(b.date).getTime())
       } else if (sortField === 'amount') {
-        return multiplier * (a.amount - b.amount)
+        // 收入视为正数，支出视为负数进行排序
+        const aSignedAmount = a.type === 'income' ? a.amount : -a.amount
+        const bSignedAmount = b.type === 'income' ? b.amount : -b.amount
+        return multiplier * (aSignedAmount - bSignedAmount)
       } else if (sortField === 'category') {
         return multiplier * (a.category || '').localeCompare(b.category || '')
       } else if (sortField === 'cash_flow_activity') {
@@ -208,6 +214,10 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
         const aOrder = natureOrder[a.transaction_nature as keyof typeof natureOrder] || 4
         const bOrder = natureOrder[b.transaction_nature as keyof typeof natureOrder] || 4
         return multiplier * (aOrder - bOrder)
+      } else if (sortField === 'store') {
+        const aStoreName = stores?.find(s => s.id === a.store_id)?.name || ''
+        const bStoreName = stores?.find(s => s.id === b.store_id)?.name || ''
+        return multiplier * aStoreName.localeCompare(bStoreName)
       } else {
         return 0
       }
@@ -219,7 +229,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
   // 获取唯一分类（用于筛选）
   const uniqueCategories = Array.from(new Set(transactions.map(t => t.category)))
 
-  const handleSort = (field: 'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature') => {
+  const handleSort = (field: 'date' | 'amount' | 'category' | 'cash_flow_activity' | 'transaction_nature' | 'store') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
@@ -341,10 +351,11 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
     handleDateChange(getFirstDayOfMonth(), getToday())
     setSelectedActivities([])
     setSelectedNatures([])
+    setSelectedStores([])
     setSearchTerm('')
   }
 
-  const hasActiveFilters = selectedCategories.length > 0 || selectedActivities.length > 0 || selectedNatures.length > 0 || searchTerm !== ''
+  const hasActiveFilters = selectedCategories.length > 0 || selectedActivities.length > 0 || selectedNatures.length > 0 || selectedStores.length > 0 || searchTerm !== ''
 
   return (
     <>
@@ -385,12 +396,12 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
           </div>
 
           {/* 表格 */}
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   {/* 日期列 - 包含年月筛选 */}
-                  <TableHead className="w-40">
+                  <TableHead>
                     <div className="flex items-center gap-2">
                       {!hideDateControl ? (
                         <>
@@ -425,6 +436,83 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                       )}
                     </div>
                   </TableHead>
+
+                  {/* 店铺列 - 仅全局模式显示，包含筛选和排序 */}
+                  {showStoreColumn && (
+                    <TableHead>
+                      <div className="flex items-center gap-1">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" className="h-8 px-2 gap-1">
+                              店铺
+                              {selectedStores.length > 0 && (
+                                <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                                  {selectedStores.length}
+                                </Badge>
+                              )}
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-56" align="start">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold">筛选店铺</Label>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => setSelectedStores(stores?.map(s => s.id) || [])}
+                                  >
+                                    全选
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => setSelectedStores([])}
+                                  >
+                                    反选
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {stores?.map(store => (
+                                  <div key={store.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`store-${store.id}`}
+                                      checked={selectedStores.includes(store.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedStores([...selectedStores, store.id])
+                                        } else {
+                                          setSelectedStores(selectedStores.filter(id => id !== store.id))
+                                        }
+                                      }}
+                                    />
+                                    <label
+                                      htmlFor={`store-${store.id}`}
+                                      className="text-sm cursor-pointer flex-1"
+                                    >
+                                      {store.name}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleSort('store')}
+                        >
+                          <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableHead>
+                  )}
 
                   {/* 分类列 - 包含分类筛选和排序 */}
                   <TableHead>
@@ -680,7 +768,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
               <TableBody>
                 {filteredTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={showStoreColumn ? 8 : 7} className="text-center text-muted-foreground py-8">
                       暂无{type === 'income' ? '收入' : '支出'}记录
                     </TableCell>
                   </TableRow>
@@ -694,6 +782,14 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                           day: '2-digit',
                         })}
                       </TableCell>
+                      {/* 店铺列 - 仅全局模式显示 */}
+                      {showStoreColumn && (
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {stores?.find(s => s.id === transaction.store_id)?.name || '-'}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent">
                           {categoryNames[transaction.category] || transaction.category}
@@ -749,7 +845,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-right font-semibold">
+                  <TableCell colSpan={showStoreColumn ? 3 : 2} className="text-right font-semibold">
                     合计
                   </TableCell>
                   <TableCell className="font-bold text-lg">

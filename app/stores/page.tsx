@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { getStores } from '@/lib/api/stores'
 import { StoreHub } from '@/components/store-hub'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
+import { getStoreHubMetrics } from '@/lib/features/store-hub'
 
 type PageProps = {
   searchParams: Promise<{ startDate?: string; endDate?: string }>
@@ -24,6 +25,12 @@ export default async function StoresPage({ searchParams }: PageProps) {
   // 验证日期范围
   const dateValidation = await validateDateRangeFromParams(searchParams)
 
+  // 获取汇总指标
+  const metricsResult = await getStoreHubMetrics({
+    startDate: dateValidation.startDate,
+    endDate: dateValidation.endDate,
+  })
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
@@ -32,6 +39,9 @@ export default async function StoresPage({ searchParams }: PageProps) {
             stores={stores || []}
             initialStartDate={dateValidation.startDate}
             initialEndDate={dateValidation.endDate}
+            metrics={metricsResult.data?.summary}
+            storeMetrics={metricsResult.data?.byStore}
+            minDate={dateValidation.initialBalanceDate}
           />
         </Suspense>
       </div>

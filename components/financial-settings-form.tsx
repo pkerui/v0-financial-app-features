@@ -7,16 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { AlertCircle, Save } from 'lucide-react'
+import { AlertCircle, Save, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveFinancialSettings, type FinancialSettings } from '@/lib/api/financial-settings'
+import { updateStore } from '@/lib/api/stores'
 import { getToday } from '@/lib/utils/date'
 
 type FinancialSettingsFormProps = {
   initialSettings: FinancialSettings | null
+  /** 店铺ID - 如果提供则保存到店铺级别，否则保存到公司级别 */
+  storeId?: string
+  /** 店铺名称 - 用于显示 */
+  storeName?: string
 }
 
-export function FinancialSettingsForm({ initialSettings }: FinancialSettingsFormProps) {
+export function FinancialSettingsForm({ initialSettings, storeId, storeName }: FinancialSettingsFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
@@ -31,17 +36,33 @@ export function FinancialSettingsForm({ initialSettings }: FinancialSettingsForm
     setLoading(true)
 
     try {
-      const result = await saveFinancialSettings({
-        initial_cash_balance: Number(formData.initial_cash_balance),
-        initial_balance_date: formData.initial_balance_date,
-        notes: formData.notes,
-      })
+      if (storeId) {
+        // 店铺模式：保存到 stores 表
+        const result = await updateStore(storeId, {
+          initial_balance_date: formData.initial_balance_date,
+          initial_balance: Number(formData.initial_cash_balance),
+        })
 
-      if (result.error) {
-        toast.error(result.error)
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success(`${storeName || '店铺'}期初设置保存成功`)
+          router.refresh()
+        }
       } else {
-        toast.success('财务设置保存成功')
-        router.refresh()
+        // 公司模式：保存到 financial_settings 表
+        const result = await saveFinancialSettings({
+          initial_cash_balance: Number(formData.initial_cash_balance),
+          initial_balance_date: formData.initial_balance_date,
+          notes: formData.notes,
+        })
+
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success('公司财务设置保存成功')
+          router.refresh()
+        }
       }
     } catch (error) {
       console.error('保存失败:', error)
@@ -55,9 +76,14 @@ export function FinancialSettingsForm({ initialSettings }: FinancialSettingsForm
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>期初余额设置</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            {storeId && <Store className="h-5 w-5" />}
+            {storeId ? `${storeName || '店铺'}期初余额设置` : '期初余额设置'}
+          </CardTitle>
           <CardDescription>
-            设置您开始使用本系统时的现金余额，系统将根据此基准计算所有财务报表
+            {storeId
+              ? `设置该店铺开始使用本系统时的现金余额，系统将根据此基准计算该店铺的财务报表`
+              : '设置公司整体开始使用本系统时的现金余额，系统将根据此基准计算所有财务报表'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -122,17 +148,19 @@ export function FinancialSettingsForm({ initialSettings }: FinancialSettingsForm
             </p>
           </div>
 
-          {/* 备注 */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">备注说明</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="可以记录期初余额的来源或其他说明..."
-              rows={3}
-            />
-          </div>
+          {/* 备注 - 仅公司模式显示 */}
+          {!storeId && (
+            <div className="space-y-2">
+              <Label htmlFor="notes">备注说明</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="可以记录期初余额的来源或其他说明..."
+                rows={3}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -141,7 +169,7 @@ export function FinancialSettingsForm({ initialSettings }: FinancialSettingsForm
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push(storeId ? `/dashboard?store=${storeId}` : '/dashboard')}
           disabled={loading}
         >
           取消

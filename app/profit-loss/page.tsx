@@ -63,6 +63,16 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
   // 查找当前店铺名称
   const currentStore = storeId ? stores?.find(s => s.id === storeId) : null
 
+  // 判断是否为全局模式（多店或全部店铺）
+  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
+
+  // 确定要查询的店铺列表
+  const targetStores = isGlobalMode
+    ? (mode === 'multi' && storeIds.length > 0
+        ? stores.filter(s => storeIds.includes(s.id))
+        : stores)
+    : (storeId ? stores?.filter(s => s.id === storeId) : stores) || []
+
   // 构建查询 - 获取期间内交易记录
   let periodQuery = supabase
     .from('transactions')
@@ -147,31 +157,45 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <Link href={dashboardUrl}>
-              <Button variant="outline" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                返回总览
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-1">
+              <Link href={dashboardUrl}>
+                <Button variant="outline" size="sm" className="gap-1 w-full">
+                  <ArrowLeft className="h-4 w-4" />
+                  返回
+                </Button>
+              </Link>
+              <Link href="/stores">
+                <Button variant="outline" size="sm" className="w-full">
+                  店铺管理
+                </Button>
+              </Link>
+            </div>
             <div>
               <h1 className="text-3xl font-bold text-foreground">
-                利润表{currentStore ? ` - ${currentStore.name}` : ''}
+                {isGlobalMode
+                  ? `合并利润表 - ${mode === 'multi' ? `${targetStores.length}家店铺` : '全部店铺'}`
+                  : `利润表${currentStore ? ` - ${currentStore.name}` : ''}`
+                }
               </h1>
               <p className="text-muted-foreground">
-                {currentStore
-                  ? `${currentStore.name}的损益情况 · ${dateValidation.startDate} 至 ${dateValidation.endDate}`
-                  : `${dateValidation.startDate} 至 ${dateValidation.endDate}`
+                {isGlobalMode
+                  ? `${mode === 'multi' ? targetStores.map(s => s.name).join('、') : '所有店铺'}的合并损益 · ${dateValidation.startDate} 至 ${dateValidation.endDate}`
+                  : currentStore
+                    ? `${currentStore.name}的损益情况 · ${dateValidation.startDate} 至 ${dateValidation.endDate}`
+                    : `${dateValidation.startDate} 至 ${dateValidation.endDate}`
                 }
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Link href={voiceEntryUrl}>
-              <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Mic className="h-4 w-4" />
-                新增记录
-              </Button>
-            </Link>
+            {!isGlobalMode && (
+              <Link href={voiceEntryUrl}>
+                <Button className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
+                  <Mic className="h-4 w-4" />
+                  新增记录
+                </Button>
+              </Link>
+            )}
             <Link href={storeId ? `/settings?store=${storeId}` : '/settings'}>
               <Button variant="outline" size="icon" title="财务设置">
                 <Settings className="h-4 w-4" />
@@ -194,6 +218,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
           initialBalanceDate={dateValidation.initialBalanceDate}
           storeId={storeId}
           storeIds={storeIds}
+          isGlobalMode={isGlobalMode}
         />
       </div>
     </main>

@@ -32,6 +32,8 @@ type ProfitLossStatementProps = {
   initialBalanceDate?: string
   storeId?: string
   storeIds?: string[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
 }
 
 export function ProfitLossStatement({
@@ -42,7 +44,8 @@ export function ProfitLossStatement({
   onDateChange,
   initialBalanceDate,
   storeId,
-  storeIds
+  storeIds,
+  isGlobalMode
 }: ProfitLossStatementProps) {
   const [showChart, setShowChart] = useState(true)
 
@@ -143,8 +146,10 @@ export function ProfitLossStatement({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>利润表</CardTitle>
-              <CardDescription>收入、成本及利润分析</CardDescription>
+              <CardTitle>{isGlobalMode ? '合并利润表' : '利润表'}</CardTitle>
+              <CardDescription>
+                {isGlobalMode ? '多店铺合并损益分析' : '收入、成本及利润分析'}
+              </CardDescription>
             </div>
             <div className="flex gap-2">
               <DateRangePicker
@@ -518,8 +523,10 @@ export function ProfitLossStatement({
         <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl">利润表</CardTitle>
-              <CardDescription className="mt-1">Profit and Loss Statement</CardDescription>
+              <CardTitle className="text-2xl">{isGlobalMode ? '合并利润表' : '利润表'}</CardTitle>
+              <CardDescription className="mt-1">
+                {isGlobalMode ? 'Consolidated Profit and Loss Statement' : 'Profit and Loss Statement'}
+              </CardDescription>
             </div>
             <div className="text-right text-sm text-muted-foreground">
               <div>期间：{startDate} 至 {endDate}</div>

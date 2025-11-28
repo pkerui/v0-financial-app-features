@@ -73,7 +73,10 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
       if (sortField === 'date') {
         return multiplier * (new Date(a.date).getTime() - new Date(b.date).getTime())
       } else {
-        return multiplier * (a.amount - b.amount)
+        // 收入视为正数，支出视为负数进行排序
+        const aSignedAmount = a.type === 'income' ? a.amount : -a.amount
+        const bSignedAmount = b.type === 'income' ? b.amount : -b.amount
+        return multiplier * (aSignedAmount - bSignedAmount)
       }
     })
 
@@ -164,8 +167,8 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
         </div>
 
         {/* 表格 */}
-        <div className="rounded-md border">
-          <Table>
+        <div className="rounded-md border overflow-x-auto">
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>

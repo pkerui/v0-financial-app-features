@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Edit, Trash2, Store as StoreIcon, MapPin, User, Phone } from 'lucide-react'
+import { ArrowLeft, Plus, Edit, Trash2, Store as StoreIcon, MapPin, User, Phone, Calendar, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import { createStore, updateStore, deleteStore } from '@/lib/api/stores'
 import { useRouter } from 'next/navigation'
@@ -71,6 +71,8 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
     manager_name: '',
     manager_phone: '',
     status: 'active' as const,
+    initial_balance_date: '',
+    initial_balance: '',
   })
 
   const handleAddStore = async () => {
@@ -81,7 +83,12 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
 
     setIsSubmitting(true)
     try {
-      const { data, error } = await createStore(newStore)
+      const storeData = {
+        ...newStore,
+        initial_balance_date: newStore.initial_balance_date || undefined,
+        initial_balance: newStore.initial_balance ? parseFloat(newStore.initial_balance) : undefined,
+      }
+      const { data, error } = await createStore(storeData)
       if (error) {
         alert(`添加失败: ${error}`)
       } else if (data) {
@@ -95,6 +102,8 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
           manager_name: '',
           manager_phone: '',
           status: 'active',
+          initial_balance_date: '',
+          initial_balance: '',
         })
         router.refresh()
       }
@@ -110,6 +119,7 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
 
     setIsSubmitting(true)
     try {
+      // 注意：期初日期和期初余额只能通过分店财务设置页面修改
       const { data, error } = await updateStore(editingStore.id, {
         name: editingStore.name,
         code: editingStore.code,
@@ -256,6 +266,28 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="initial_balance_date">期初日期 *</Label>
+                <Input
+                  id="initial_balance_date"
+                  type="date"
+                  value={newStore.initial_balance_date}
+                  onChange={(e) => setNewStore({ ...newStore, initial_balance_date: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">该店铺财务数据的起始日期</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="initial_balance">期初余额</Label>
+                <Input
+                  id="initial_balance"
+                  type="number"
+                  step="0.01"
+                  value={newStore.initial_balance}
+                  onChange={(e) => setNewStore({ ...newStore, initial_balance: e.target.value })}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">开始使用系统时的现金余额</p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -276,14 +308,14 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
           <CardDescription>共 {stores.length} 家店铺</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>店铺名称</TableHead>
                 <TableHead>编号</TableHead>
                 <TableHead>城市</TableHead>
-                <TableHead>店长</TableHead>
-                <TableHead>联系电话</TableHead>
+                <TableHead>期初日期</TableHead>
+                <TableHead>期初余额</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -316,20 +348,20 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
                       )}
                     </TableCell>
                     <TableCell>
-                      {store.manager_name ? (
+                      {store.initial_balance_date ? (
                         <div className="flex items-center gap-1">
-                          <User className="h-3.5 w-3.5 text-muted-foreground" />
-                          {store.manager_name}
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          {store.initial_balance_date}
                         </div>
                       ) : (
-                        '-'
+                        <span className="text-orange-500">未设置</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {store.manager_phone ? (
+                      {store.initial_balance !== undefined && store.initial_balance !== null ? (
                         <div className="flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          {store.manager_phone}
+                          <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                          ¥{store.initial_balance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                         </div>
                       ) : (
                         '-'
@@ -444,6 +476,33 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
                     <SelectItem value="closed">已关闭</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              {/* 期初设置 - 只读显示，引导到财务设置页面修改 */}
+              <div className="grid gap-2 p-3 bg-muted/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <Label className="text-muted-foreground">期初设置</Label>
+                  <Link href={`/settings?store=${editingStore.id}`}>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                      前往财务设置修改 →
+                    </Button>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">期初日期：</span>
+                    <span className="font-medium">
+                      {editingStore.initial_balance_date || <span className="text-orange-500">未设置</span>}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">期初余额：</span>
+                    <span className="font-medium">
+                      {editingStore.initial_balance !== undefined && editingStore.initial_balance !== null
+                        ? `¥${editingStore.initial_balance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`
+                        : <span className="text-orange-500">未设置</span>}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

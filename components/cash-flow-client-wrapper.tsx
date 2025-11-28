@@ -2,10 +2,10 @@
 
 import { useDateRangeNavigation } from '@/lib/hooks/use-date-range-navigation'
 import { CashFlowStatement } from '@/components/cash-flow-statement'
-import type { CashFlowData } from '@/lib/services/cash-flow'
+import type { CashFlowData, NewStoreCapitalInvestment, ConsolidatedCashFlowData } from '@/lib/services/cash-flow'
 
 type CashFlowClientWrapperProps = {
-  cashFlowData: CashFlowData
+  cashFlowData: CashFlowData | ConsolidatedCashFlowData
   monthlyData: Array<{
     month: string
     operating: number
@@ -18,6 +18,14 @@ type CashFlowClientWrapperProps = {
   initialBalanceDate?: string
   storeId?: string
   storeIds?: string[]
+  /** 新店资本投入说明（仅全局模式） */
+  newStoreCapitalInvestments?: NewStoreCapitalInvestment[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
+  /** 已存在店铺数量（仅全局模式） */
+  existingStoreCount?: number
+  /** 新店数量（仅全局模式） */
+  newStoreCount?: number
 }
 
 export function CashFlowClientWrapper({
@@ -27,7 +35,11 @@ export function CashFlowClientWrapper({
   initialEndDate,
   initialBalanceDate,
   storeId,
-  storeIds
+  storeIds,
+  newStoreCapitalInvestments,
+  isGlobalMode,
+  existingStoreCount,
+  newStoreCount
 }: CashFlowClientWrapperProps) {
   const handleDateChange = useDateRangeNavigation({ basePath: '/cash-flow' })
 
@@ -41,6 +53,10 @@ export function CashFlowClientWrapper({
       initialBalanceDate={initialBalanceDate}
       storeId={storeId}
       storeIds={storeIds}
+      newStoreCapitalInvestments={newStoreCapitalInvestments}
+      isGlobalMode={isGlobalMode}
+      existingStoreCount={existingStoreCount}
+      newStoreCount={newStoreCount}
     />
   )
 }

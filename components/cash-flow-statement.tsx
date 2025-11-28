@@ -3,9 +3,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { Download, TrendingUp, TrendingDown, DollarSign, ArrowRight } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, DollarSign, ArrowRight, Info } from 'lucide-react'
 import { useState } from 'react'
-import type { CashFlowData } from '@/lib/services/cash-flow'
+import type { CashFlowData, NewStoreCapitalInvestment, ConsolidatedCashFlowData } from '@/lib/services/cash-flow'
 import { activityNames } from '@/lib/cash-flow-config'
 import Link from 'next/link'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, ComposedChart, Scatter, Area, AreaChart, Cell } from 'recharts'
@@ -13,7 +13,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { getToday } from '@/lib/utils/date'
 
 type CashFlowStatementProps = {
-  cashFlowData: CashFlowData
+  cashFlowData: CashFlowData | ConsolidatedCashFlowData
   monthlyData?: Array<{
     month: string
     operating: number
@@ -29,6 +29,14 @@ type CashFlowStatementProps = {
   initialBalanceDate?: string
   storeId?: string
   storeIds?: string[]
+  /** 新店资本投入说明（仅全局模式） */
+  newStoreCapitalInvestments?: NewStoreCapitalInvestment[]
+  /** 是否为全局模式 */
+  isGlobalMode?: boolean
+  /** 已存在店铺数量（仅全局模式） */
+  existingStoreCount?: number
+  /** 新店数量（仅全局模式） */
+  newStoreCount?: number
 }
 
 export function CashFlowStatement({
@@ -39,7 +47,11 @@ export function CashFlowStatement({
   onDateChange,
   initialBalanceDate,
   storeId,
-  storeIds
+  storeIds,
+  newStoreCapitalInvestments,
+  isGlobalMode,
+  existingStoreCount,
+  newStoreCount
 }: CashFlowStatementProps) {
   const [showChart, setShowChart] = useState(true)
 
@@ -251,6 +263,22 @@ export function CashFlowStatement({
             <p className="text-xs text-muted-foreground mt-1">
               {startDate}
             </p>
+            {/* 全局模式说明 */}
+            {isGlobalMode && existingStoreCount !== undefined && (
+              <div className="mt-3 pt-3 border-t border-dashed">
+                <div className="flex items-start gap-1.5 text-xs text-amber-600">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <div>
+                    <span>仅含 {startDate} 前已开业的 {existingStoreCount} 家店铺</span>
+                    {newStoreCount != null && newStoreCount > 0 && (
+                      <span className="block text-muted-foreground">
+                        {startDate} 至 {endDate} 新开 {newStoreCount} 家店铺的期初现金余额见「筹资活动」
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm">
@@ -569,6 +597,53 @@ export function CashFlowStatement({
           </div>
         </CardContent>
       </Card>
+
+      {/* 新店资本投入说明（仅全局模式且有新店时显示） */}
+      {isGlobalMode && newStoreCapitalInvestments && newStoreCapitalInvestments.length > 0 && (
+        <Card className="border-0 shadow-sm border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-amber-600" />
+              <CardTitle className="text-base text-amber-700 dark:text-amber-400">
+                合并报表说明
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-sm text-muted-foreground space-y-3">
+              <p>
+                本报表为多店铺合并现金流量表。以下新开店铺的期初余额已计入
+                <span className="font-medium text-amber-700 dark:text-amber-400">「筹资活动 - 新店资本投入」</span>：
+              </p>
+              <div className="bg-background/60 rounded-lg p-3 space-y-2">
+                {newStoreCapitalInvestments.map((investment) => (
+                  <div key={investment.storeId} className="flex justify-between items-center text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-amber-500 rounded-full" />
+                      <span className="font-medium">{investment.storeName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        (开业日期: {investment.date})
+                      </span>
+                    </span>
+                    <span className="font-medium text-blue-600">
+                      +¥{investment.amount.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t flex justify-between items-center font-medium">
+                  <span>新店资本投入合计</span>
+                  <span className="text-blue-600">
+                    +¥{newStoreCapitalInvestments.reduce((sum, i) => sum + i.amount, 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground/80 italic">
+                注：新店资本投入为虚拟计算项，非实际交易记录。该金额来源于各店铺设置的期初现金余额。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
