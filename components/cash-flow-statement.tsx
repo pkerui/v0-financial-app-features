@@ -37,6 +37,8 @@ type CashFlowStatementProps = {
   existingStoreCount?: number
   /** 新店数量（仅全局模式） */
   newStoreCount?: number
+  /** 已存在店铺名称列表（仅全局模式） */
+  existingStoreNames?: string[]
 }
 
 export function CashFlowStatement({
@@ -51,7 +53,8 @@ export function CashFlowStatement({
   newStoreCapitalInvestments,
   isGlobalMode,
   existingStoreCount,
-  newStoreCount
+  newStoreCount,
+  existingStoreNames
 }: CashFlowStatementProps) {
   const [showChart, setShowChart] = useState(true)
 
@@ -269,7 +272,7 @@ export function CashFlowStatement({
                 <div className="flex items-start gap-1.5 text-xs text-amber-600">
                   <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   <div>
-                    <span>仅含 {startDate} 前已开业的 {existingStoreCount} 家店铺</span>
+                    <span>仅含 {startDate} 前已开业的 {existingStoreCount} 家店铺{existingStoreNames && existingStoreNames.length > 0 ? `（${existingStoreNames.join('、')}）` : ''}</span>
                     {newStoreCount != null && newStoreCount > 0 && (
                       <span className="block text-muted-foreground">
                         {startDate} 至 {endDate} 新开 {newStoreCount} 家店铺的期初现金余额见「筹资活动」

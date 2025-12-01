@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardContent } from '@/components/dashboard-content'
 import { getActiveStores } from '@/lib/api/stores'
+import type { UserRole } from '@/lib/auth/permissions'
 
 type PageProps = {
   searchParams: Promise<{ store?: string; stores?: string }>
@@ -35,10 +36,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     redirect('/')
   }
 
-  // 获取用户配置
+  // 获取用户配置（包含角色）
   const { data: profile } = await supabase
     .from('profiles')
-    .select('company_id')
+    .select('company_id, role')
     .eq('id', user.id)
     .single()
 
@@ -53,6 +54,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
       </div>
     )
+  }
+
+  // 权限检查：单店权限用户（manager/user）不能访问全局总览
+  const userRole: UserRole = (profile?.role as UserRole) || 'user'
+  const canViewGlobalData = userRole === 'owner' || userRole === 'accountant'
+  const isGlobalMode = !singleStoreId && !multiStoreIds
+
+  // 如果是单店权限用户且尝试访问全局模式，重定向到店铺管理页面
+  if (!canViewGlobalData && isGlobalMode) {
+    redirect('/stores')
   }
 
   // 获取当前选中的店铺（allStores 已在上面获取）

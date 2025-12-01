@@ -89,6 +89,7 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
   let newStoreCapitalInvestments: NewStoreCapitalInvestment[] = []
   let existingStoreCount = 0
   let newStoreCount = 0
+  let existingStoreNames: string[] = []
 
   if (isGlobalMode && stores) {
     // 全局模式：计算所有老店的期初余额之和
@@ -131,6 +132,7 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
       } else if (!storeInitialDate || storeInitialDate <= dateValidation.startDate) {
         // 老店：期初余额日期在查询开始日期或之前
         existingStoreCount++
+        existingStoreNames.push(store.name)
 
         // 计算该店铺在查询开始日的期初余额
         const storeTransactions = allTxFlat.filter(t => t.store_id === store.id)
@@ -146,9 +148,12 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
         beginningBalance += storeBeginningBalance
       }
     })
-  } else if (storeId && stores) {
+  } else if (stores) {
     // 单店模式：使用该店铺的期初数据
-    const store = stores.find(s => s.id === storeId)
+    // 如果没有明确指定店铺，但只有一家店铺，使用那家店铺的数据
+    const store = storeId
+      ? stores.find(s => s.id === storeId)
+      : (stores.length === 1 ? stores[0] : null)
     if (store && store.initial_balance_date) {
       // 获取该店铺的所有交易用于计算期初余额
       const { data: allTxForBalance } = await supabase
@@ -160,7 +165,7 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
           )
         `)
         .eq('company_id', profile.company_id)
-        .eq('store_id', storeId)
+        .eq('store_id', store.id)
         .order('date', { ascending: false })
 
       const allTxFlat = allTxForBalance?.map(t => ({
@@ -198,6 +203,7 @@ export default async function EndingBalancePage({ searchParams }: PageProps) {
       newStoreCapitalInvestments={newStoreCapitalInvestments}
       existingStoreCount={existingStoreCount}
       newStoreCount={newStoreCount}
+      existingStoreNames={existingStoreNames}
       availableStores={availableStores}
     />
   )

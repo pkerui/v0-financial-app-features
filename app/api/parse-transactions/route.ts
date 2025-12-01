@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUserApiKeys } from '@/lib/api/api-config'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,10 +9,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入要解析的文本' }, { status: 400 })
     }
 
-    const apiKey = process.env.DEEPSEEK_API_KEY
+    // 优先使用公司配置的 API Key，否则使用环境变量
+    let apiKey = process.env.DEEPSEEK_API_KEY
+    const companyKeys = await getCurrentUserApiKeys()
+    if (companyKeys?.deepseek_api_key) {
+      apiKey = companyKeys.deepseek_api_key
+    }
 
     if (!apiKey) {
-      return NextResponse.json({ error: 'DeepSeek API 密钥未配置' }, { status: 500 })
+      return NextResponse.json({ error: 'DeepSeek API 密钥未配置，请在系统设置中配置 API 密钥' }, { status: 500 })
     }
 
     // 获取当前日期
@@ -304,6 +310,15 @@ ${categoryHints}
     if (!response.ok) {
       const errorData = await response.text()
       console.error('DeepSeek API 错误:', errorData)
+
+      // 检查是否是密钥错误（401 或包含 auth 相关错误）
+      if (response.status === 401 || response.status === 403 || errorData.toLowerCase().includes('auth') || errorData.toLowerCase().includes('invalid')) {
+        return NextResponse.json(
+          { error: 'DeepSeek 密钥无效，请联系管理员在系统设置中检查 API 配置' },
+          { status: 401 }
+        )
+      }
+
       return NextResponse.json(
         { error: 'DeepSeek API 调用失败' },
         { status: response.status }

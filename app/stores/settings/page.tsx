@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { StoreSettingsContent } from '@/components/store-settings-content'
 import { getStores } from '@/lib/api/stores'
+import type { UserRole } from '@/lib/auth/permissions'
 
 export default async function StoreSettingsPage() {
   const supabase = await createClient()
@@ -15,10 +16,10 @@ export default async function StoreSettingsPage() {
     redirect('/')
   }
 
-  // 获取用户配置
+  // 获取用户配置（包含角色）
   const { data: profile } = await supabase
     .from('profiles')
-    .select('company_id')
+    .select('company_id, role')
     .eq('id', user.id)
     .single()
 
@@ -52,7 +53,11 @@ export default async function StoreSettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-        <StoreSettingsContent stores={stores || []} />
+        <StoreSettingsContent
+          stores={stores || []}
+          currentUserId={user.id}
+          currentUserRole={(profile.role || 'user') as UserRole}
+        />
       </div>
     </div>
   )

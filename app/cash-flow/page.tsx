@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, LogOut, Mic, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { logout } from '@/lib/auth/actions'
+import { getBackUrl } from '@/lib/utils/navigation'
+import type { UserRole } from '@/lib/auth/permissions'
 import {
   calculateCashFlow,
   calculateMonthlyCashFlow,
@@ -36,10 +38,10 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
     redirect('/')
   }
 
-  // 获取用户配置
+  // 获取用户配置（包含角色）
   const { data: profile } = await supabase
     .from('profiles')
-    .select('company_id')
+    .select('company_id, role')
     .eq('id', user.id)
     .single()
 
@@ -148,7 +150,10 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
   } else {
     // 单店模式：使用该店铺的期初数据
     let beginningBalance = 0
-    const currentStoreData = storeId ? stores?.find(s => s.id === storeId) : null
+    // 如果没有明确指定店铺，但只有一家店铺，使用那家店铺的数据
+    const currentStoreData = storeId
+      ? stores?.find(s => s.id === storeId)
+      : (stores?.length === 1 ? stores[0] : null)
 
     if (currentStoreData && currentStoreData.initial_balance_date) {
       // 获取该店铺的所有交易用于计算期初余额
@@ -161,7 +166,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
           )
         `)
         .eq('company_id', profile.company_id)
-        .eq('store_id', storeId)
+        .eq('store_id', currentStoreData.id)
         .order('date', { ascending: false })
 
       const allTxFlat = allTxForBalance?.map(t => ({
@@ -233,12 +238,9 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
     )
   }
 
-  // 构建返回链接
-  const dashboardUrl = storeId
-    ? `/dashboard?store=${storeId}`
-    : storeIds.length > 0
-    ? `/dashboard?stores=${storeIds.join(',')}`
-    : '/dashboard'
+  // 获取用户角色并构建返回链接
+  const userRole: UserRole = (profile?.role as UserRole) || 'user'
+  const backUrl = getBackUrl(userRole, storeId, storeIds)
 
   // 构建新增记录链接
   const voiceEntryUrl = storeId ? `/voice-entry?store=${storeId}` : '/voice-entry'
@@ -250,7 +252,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-1">
-              <Link href={dashboardUrl}>
+              <Link href={backUrl}>
                 <Button variant="outline" size="sm" className="gap-1 w-full">
                   <ArrowLeft className="h-4 w-4" />
                   返回
@@ -324,6 +326,11 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
           newStoreCount={
             isGlobalMode && 'storeBreakdown' in cashFlowData
               ? cashFlowData.storeBreakdown.filter(s => s.isNewStore).length
+              : undefined
+          }
+          existingStoreNames={
+            isGlobalMode && 'storeBreakdown' in cashFlowData
+              ? cashFlowData.storeBreakdown.filter(s => !s.isNewStore).map(s => s.storeName)
               : undefined
           }
         />

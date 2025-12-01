@@ -53,6 +53,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowUpDown, Filter, Pencil, Trash2, Download, X, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ActivityBadge } from '@/components/activity-badge'
+import { canEditTransaction, canDeleteTransaction, type UserProfile } from '@/lib/auth/permissions'
 
 type Transaction = {
   id: string
@@ -67,6 +68,7 @@ type Transaction = {
   transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
   include_in_profit_loss?: boolean | null
   store_id?: string | null
+  created_by?: string | null
 }
 
 type Store = {
@@ -94,6 +96,8 @@ type TransactionsTableAllProps = {
   stores?: Store[]
   /** 是否显示店铺列 - 全局模式下为 true */
   showStoreColumn?: boolean
+  /** 用户配置信息 - 用于权限检查 */
+  userProfile?: UserProfile | null
 }
 
 const categoryNames: Record<string, string> = {
@@ -120,7 +124,7 @@ const categoryNames: Record<string, string> = {
   '其他支出': '其他支出',
 }
 
-export function TransactionsTableAll({ transactions, initialStartDate, initialEndDate, categories, initialBalanceDate, stores, showStoreColumn }: TransactionsTableAllProps) {
+export function TransactionsTableAll({ transactions, initialStartDate, initialEndDate, categories, initialBalanceDate, stores, showStoreColumn, userProfile }: TransactionsTableAllProps) {
   const router = useRouter()
 
   // 使用服务端传入的日期
@@ -897,22 +901,26 @@ export function TransactionsTableAll({ transactions, initialStartDate, initialEn
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(transaction)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeletingId(transaction.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canEditTransaction(userProfile || null, transaction) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(transaction)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDeleteTransaction(userProfile || null, transaction) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => setDeletingId(transaction.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

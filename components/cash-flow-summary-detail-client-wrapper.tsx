@@ -48,6 +48,8 @@ type CashFlowSummaryDetailClientWrapperProps = {
   existingStoreCount?: number
   /** 新店数量（仅全局模式） */
   newStoreCount?: number
+  /** 已存在店铺名称列表（仅全局模式） */
+  existingStoreNames?: string[]
   /** 可用店铺列表（用于筛选下拉框，仅全局模式） */
   availableStores?: StoreOption[]
 }
@@ -64,6 +66,7 @@ export function CashFlowSummaryDetailClientWrapper({
   newStoreCapitalInvestments,
   existingStoreCount,
   newStoreCount,
+  existingStoreNames,
   availableStores = []
 }: CashFlowSummaryDetailClientWrapperProps) {
   // 使用统一的日期导航Hook
@@ -85,6 +88,7 @@ export function CashFlowSummaryDetailClientWrapper({
       newStoreCapitalInvestments={newStoreCapitalInvestments}
       existingStoreCount={existingStoreCount}
       newStoreCount={newStoreCount}
+      existingStoreNames={existingStoreNames}
       availableStores={availableStores}
     />
   )

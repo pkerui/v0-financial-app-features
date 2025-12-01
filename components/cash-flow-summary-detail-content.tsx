@@ -73,6 +73,8 @@ type CashFlowSummaryDetailContentProps = {
   existingStoreCount?: number
   /** 新店数量（仅全局模式） */
   newStoreCount?: number
+  /** 已存在店铺名称列表（仅全局模式） */
+  existingStoreNames?: string[]
   /** 可用店铺列表（用于筛选下拉框，仅全局模式） */
   availableStores?: StoreOption[]
 }
@@ -98,6 +100,7 @@ export function CashFlowSummaryDetailContent({
   newStoreCapitalInvestments = [],
   existingStoreCount,
   newStoreCount,
+  existingStoreNames,
   availableStores = []
 }: CashFlowSummaryDetailContentProps) {
   // 筛选和排序状态
@@ -244,7 +247,13 @@ export function CashFlowSummaryDetailContent({
     lines.push('')
 
     if (detailType === 'ending-balance') {
-      lines.push(`期初现金余额,${beginningBalance.toFixed(2)}`)
+      let balanceLabel = '期初现金余额'
+      if (storeName) {
+        balanceLabel = `期初现金余额（${storeName}）`
+      } else if (isGlobalMode && existingStoreCount !== undefined) {
+        balanceLabel = `期初现金余额（仅含 ${startDate} 前已开业的 ${existingStoreCount} 家店铺${existingStoreNames && existingStoreNames.length > 0 ? `：${existingStoreNames.join('、')}` : ''}）`
+      }
+      lines.push(`${balanceLabel},${beginningBalance.toFixed(2)}`)
       lines.push('')
     }
 
@@ -329,7 +338,9 @@ export function CashFlowSummaryDetailContent({
           <Card className="border-0 shadow-sm bg-blue-50 dark:bg-blue-950/20">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">期初现金余额</span>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  期初现金余额{storeName ? `（${storeName}）` : isGlobalMode && existingStoreCount !== undefined ? `（仅含 ${startDate} 前已开业的 ${existingStoreCount} 家店铺${existingStoreNames && existingStoreNames.length > 0 ? `：${existingStoreNames.join('、')}` : ''}）` : ''}
+                </span>
                 <span className="text-lg font-bold text-blue-700 dark:text-blue-300">¥{beginningBalance.toFixed(2)}</span>
               </div>
             </CardContent>

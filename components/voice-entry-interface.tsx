@@ -163,7 +163,6 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
         setVoiceText(text)
       },
       (error) => {
-        console.error('语音识别错误:', error)
         setErrorMessage(error)
         setIsRecording(false)
       }
@@ -710,6 +709,14 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
                         className="w-full min-h-[100px] px-3 py-2 rounded-md border border-input bg-input text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                       />
                     </div>
+
+                    {/* 错误提示 */}
+                    {errorMessage && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>{errorMessage}</span>
+                      </div>
+                    )}
 
                     <Button
                       onClick={handleManualTextParse}

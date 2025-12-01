@@ -31,13 +31,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Edit, Trash2, Store as StoreIcon, MapPin, User, Phone, Calendar, Wallet } from 'lucide-react'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
+import { ArrowLeft, Plus, Edit, Trash2, Store as StoreIcon, MapPin, User, Phone, Calendar, Wallet, Users, LogOut, Key } from 'lucide-react'
 import Link from 'next/link'
 import { createStore, updateStore, deleteStore } from '@/lib/api/stores'
+import { logout } from '@/lib/auth/actions'
 import { useRouter } from 'next/navigation'
+import { UserManagement } from '@/components/user-management'
+import { ApiConfig } from '@/components/api-config'
+import type { UserRole } from '@/lib/auth/permissions'
 
 interface StoreSettingsContentProps {
   stores: Store[]
+  currentUserId: string
+  currentUserRole: UserRole
 }
 
 const statusLabels: Record<string, string> = {
@@ -54,7 +66,7 @@ const statusColors: Record<string, string> = {
   closed: 'bg-red-100 text-red-800 border-red-200',
 }
 
-export function StoreSettingsContent({ stores: initialStores }: StoreSettingsContentProps) {
+export function StoreSettingsContent({ stores: initialStores, currentUserId, currentUserRole }: StoreSettingsContentProps) {
   const router = useRouter()
   const [stores, setStores] = useState<Store[]>(initialStores)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -163,6 +175,13 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
     }
   }
 
+  // 检查用户是否可以管理店铺（owner 和 accountant 可以）
+  const canManageStores = currentUserRole === 'owner' || currentUserRole === 'accountant'
+  // 检查用户是否可以查看团队管理（owner 和 accountant 可以）
+  const canViewTeam = currentUserRole === 'owner' || currentUserRole === 'accountant'
+  // 检查用户是否可以管理 API 配置（只有 owner 可以）
+  const canManageApi = currentUserRole === 'owner'
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -175,19 +194,52 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">店铺设置</h1>
-            <p className="text-muted-foreground">管理您的店铺信息</p>
+            <h1 className="text-3xl font-bold text-foreground">系统设置</h1>
+            <p className="text-muted-foreground">管理店铺和团队成员</p>
           </div>
         </div>
+        <form action={logout}>
+          <Button variant="outline" className="gap-2">
+            <LogOut className="h-4 w-4" />
+            退出登录
+          </Button>
+        </form>
+      </div>
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      {/* Tabs */}
+      <Tabs defaultValue="stores" className="w-full">
+        <TabsList className={`grid w-full max-w-lg ${canManageApi ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <TabsTrigger value="stores" className="gap-2">
+            <StoreIcon className="h-4 w-4" />
+            店铺管理
+          </TabsTrigger>
+          {canViewTeam && (
+            <TabsTrigger value="team" className="gap-2">
+              <Users className="h-4 w-4" />
+              团队管理
+            </TabsTrigger>
+          )}
+          {canManageApi && (
+            <TabsTrigger value="api" className="gap-2">
+              <Key className="h-4 w-4" />
+              API 配置
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        {/* 店铺管理 Tab */}
+        <TabsContent value="stores" className="space-y-6 mt-6">
+          {/* 店铺管理头部操作 */}
+          {canManageStores && (
+            <div className="flex justify-end">
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
               新增店铺
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>新增店铺</DialogTitle>
               <DialogDescription>
@@ -299,9 +351,10 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+            </div>
+          )}
 
-      {/* 店铺列表 */}
+          {/* 店铺列表 */}
       <Card>
         <CardHeader>
           <CardTitle>店铺列表</CardTitle>
@@ -373,25 +426,29 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingStore(store)
-                            setIsEditDialogOpen(true)
-                          }}
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteStore(store.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
+                      {canManageStores ? (
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingStore(store)
+                              setIsEditDialogOpen(true)
+                            }}
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteStore(store.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -403,7 +460,7 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
 
       {/* 编辑对话框 */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑店铺</DialogTitle>
             <DialogDescription>
@@ -516,6 +573,26 @@ export function StoreSettingsContent({ stores: initialStores }: StoreSettingsCon
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        {/* 团队管理 Tab */}
+        {canViewTeam && (
+          <TabsContent value="team" className="mt-6">
+            <UserManagement
+              stores={stores.map((s) => ({ id: s.id, name: s.name }))}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+            />
+          </TabsContent>
+        )}
+
+        {/* API 配置 Tab */}
+        {canManageApi && (
+          <TabsContent value="api" className="mt-6">
+            <ApiConfig />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   )
 }

@@ -1,14 +1,37 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { getStores } from '@/lib/api/stores'
 import { StoreHub } from '@/components/store-hub'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
 import { getStoreHubMetrics } from '@/lib/features/store-hub'
+import type { UserRole } from '@/lib/auth/permissions'
 
 type PageProps = {
   searchParams: Promise<{ startDate?: string; endDate?: string }>
 }
 
 export default async function StoresPage({ searchParams }: PageProps) {
+  const supabase = await createClient()
+
+  // 获取当前用户
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/')
+  }
+
+  // 获取用户角色
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const userRole: UserRole = (profile?.role as UserRole) || 'user'
+
   const { data: stores, error } = await getStores()
 
   if (error) {
@@ -42,6 +65,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
             metrics={metricsResult.data?.summary}
             storeMetrics={metricsResult.data?.byStore}
             minDate={dateValidation.initialBalanceDate}
+            userRole={userRole}
           />
         </Suspense>
       </div>

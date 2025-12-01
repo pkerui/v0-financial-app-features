@@ -9,6 +9,8 @@ import Link from 'next/link'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
 import { getStoreModeServer } from '@/lib/utils/store-mode'
 import { getActiveStores } from '@/lib/api/stores'
+import { getBackUrl } from '@/lib/utils/navigation'
+import type { UserRole } from '@/lib/auth/permissions'
 
 type PageProps = {
   searchParams: Promise<{ startDate?: string; endDate?: string; store?: string; stores?: string }>
@@ -26,10 +28,10 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
     redirect('/')
   }
 
-  // 获取用户配置
+  // 获取用户配置（包含角色和管理的店铺）
   const { data: profile } = await supabase
     .from('profiles')
-    .select('company_id')
+    .select('company_id, role, managed_store_ids')
     .eq('id', user.id)
     .single()
 
@@ -132,12 +134,9 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
   // 查找当前店铺名称
   const currentStore = storeId ? stores?.find(s => s.id === storeId) : null
 
-  // 构建返回链接
-  const dashboardUrl = storeId
-    ? `/dashboard?store=${storeId}`
-    : storeIds.length > 0
-    ? `/dashboard?stores=${storeIds.join(',')}`
-    : '/dashboard'
+  // 获取用户角色并构建返回链接
+  const userRole: UserRole = (profile?.role as UserRole) || 'user'
+  const backUrl = getBackUrl(userRole, storeId, storeIds)
 
   // 构建新增记录链接
   const voiceEntryUrl = storeId ? `/voice-entry?store=${storeId}` : '/voice-entry'
@@ -162,7 +161,7 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-1">
-              <Link href={dashboardUrl}>
+              <Link href={backUrl}>
                 <Button variant="outline" size="sm" className="gap-1 w-full">
                   <ArrowLeft className="h-4 w-4" />
                   返回
@@ -203,6 +202,11 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
           initialBalanceDate={dateValidation.initialBalanceDate}
           stores={stores || []}
           showStoreColumn={isGlobalMode}
+          userProfile={{
+            id: user.id,
+            role: (profile.role || 'user') as UserRole,
+            managed_store_ids: profile.managed_store_ids || [],
+          }}
         />
 
         {/* 多店对比区域 - 仅全局模式显示 */}

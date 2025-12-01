@@ -26,6 +26,8 @@ type CashFlowClientWrapperProps = {
   existingStoreCount?: number
   /** 新店数量（仅全局模式） */
   newStoreCount?: number
+  /** 已存在店铺名称列表（仅全局模式） */
+  existingStoreNames?: string[]
 }
 
 export function CashFlowClientWrapper({
@@ -39,7 +41,8 @@ export function CashFlowClientWrapper({
   newStoreCapitalInvestments,
   isGlobalMode,
   existingStoreCount,
-  newStoreCount
+  newStoreCount,
+  existingStoreNames
 }: CashFlowClientWrapperProps) {
   const handleDateChange = useDateRangeNavigation({ basePath: '/cash-flow' })
 
@@ -57,6 +60,7 @@ export function CashFlowClientWrapper({
       isGlobalMode={isGlobalMode}
       existingStoreCount={existingStoreCount}
       newStoreCount={newStoreCount}
+      existingStoreNames={existingStoreNames}
     />
   )
 }

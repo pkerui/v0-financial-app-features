@@ -113,12 +113,24 @@ export class TencentASR {
         body: formData,
       })
 
-      const data = await response.json()
+      // 读取响应文本，然后解析为 JSON
+      const responseText = await response.text()
+      console.log('腾讯云 ASR 原始响应:', responseText)
+
+      let data: { text?: string; error?: string; requestId?: string }
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        console.error('解析响应失败:', responseText)
+        onError('服务器响应格式错误')
+        return
+      }
+
       console.log('腾讯云 ASR 响应:', data)
 
       if (!response.ok) {
-        console.error('腾讯云 ASR 错误:', data)
-        onError(data.error || '语音识别失败')
+        const errorMessage = data.error || '语音识别失败'
+        onError(errorMessage)
         return
       }
 

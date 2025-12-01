@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { getCurrentUserApiKeys } from '@/lib/api/api-config'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +11,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请提供音频文件' }, { status: 400 })
     }
 
-    const secretId = process.env.TENCENT_SECRET_ID
-    const secretKey = process.env.TENCENT_SECRET_KEY
+    // 优先使用公司配置的 API Key，否则使用环境变量
+    let secretId = process.env.TENCENT_SECRET_ID
+    let secretKey = process.env.TENCENT_SECRET_KEY
+    const companyKeys = await getCurrentUserApiKeys()
+    if (companyKeys?.tencent_secret_id && companyKeys?.tencent_secret_key) {
+      secretId = companyKeys.tencent_secret_id
+      secretKey = companyKeys.tencent_secret_key
+    }
 
     if (!secretId || !secretKey) {
-      return NextResponse.json({ error: '腾讯云 API 密钥未配置' }, { status: 500 })
+      return NextResponse.json({ error: '腾讯云 API 密钥未配置，请在系统设置中配置 API 密钥' }, { status: 500 })
     }
 
     // 将音频文件转换为 Base64
@@ -88,8 +95,19 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok || data.Response?.Error) {
       console.error('腾讯云 ASR 错误:', data)
+      const errorCode = data.Response?.Error?.Code || ''
+      const errorMessage = data.Response?.Error?.Message || '语音识别失败'
+
+      // 检查是否是密钥错误
+      if (errorCode.includes('AuthFailure') || errorCode.includes('SecretId') || errorCode.includes('SecretKey')) {
+        return NextResponse.json(
+          { error: '腾讯云密钥无效，请联系管理员在系统设置中检查 API 配置' },
+          { status: 401 }
+        )
+      }
+
       return NextResponse.json(
-        { error: data.Response?.Error?.Message || '语音识别失败' },
+        { error: errorMessage },
         { status: response.status }
       )
     }

@@ -2,12 +2,13 @@
 
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
+import Link from 'next/link'
 import { login } from '@/lib/auth/actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Lock, Mail, AlertCircle } from 'lucide-react'
+import { Lock, User, AlertCircle } from 'lucide-react'
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -54,25 +55,33 @@ export function LoginForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email" className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              邮箱地址
+            <Label htmlFor="username" className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              用户名
             </Label>
             <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="your@example.com"
+              id="username"
+              name="username"
+              type="text"
+              placeholder="请输入用户名"
               className="bg-input"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-              密码
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+                密码
+              </Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                忘记密码？
+              </Link>
+            </div>
             <Input
               id="password"
               name="password"
@@ -85,14 +94,6 @@ export function LoginForm() {
 
           <SubmitButton />
         </form>
-
-        <div className="mt-6 space-y-3 pt-4 border-t border-border">
-          <p className="text-xs text-center text-muted-foreground">演示账户</p>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>邮箱: <span className="text-foreground font-mono">demo@homestay.com</span></p>
-            <p>密码: <span className="text-foreground font-mono">demo123</span></p>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )

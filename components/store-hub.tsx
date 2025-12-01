@@ -25,6 +25,7 @@ import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
 import { useRouter } from 'next/navigation'
 import { SummaryCards } from '@/components/store-hub/summary-cards'
 import type { StoreHubMetrics, SingleStoreMetrics } from '@/lib/features/store-hub'
+import type { UserRole } from '@/lib/auth/permissions'
 
 interface StoreHubProps {
   stores: Store[]
@@ -34,6 +35,8 @@ interface StoreHubProps {
   storeMetrics?: SingleStoreMetrics[]
   /** 最早店铺期初日期，用于限制日期选择器 */
   minDate?: string
+  /** 用户角色 */
+  userRole?: UserRole
 }
 
 const statusColors: Record<string, string> = {
@@ -57,7 +60,9 @@ const formatAmount = (value: number, decimals: number = 2): string => {
   return value < 0 ? `-¥${formatted}` : `¥${formatted}`
 }
 
-export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, storeMetrics, minDate }: StoreHubProps) {
+export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, storeMetrics, minDate, userRole }: StoreHubProps) {
+  // 检查用户是否可以查看全局数据（owner 和 accountant 可以）
+  const canViewGlobalData = userRole === 'owner' || userRole === 'accountant'
   const [viewMode, setViewMode] = useState<'overview' | 'management'>('overview')
 
   // 日期状态
@@ -181,16 +186,24 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
       {/* 视图切换 */}
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'overview' | 'management')}>
         <div className="flex items-center justify-between">
-          <TabsList className="grid grid-cols-2 w-[400px]">
-            <TabsTrigger value="overview">店铺总览</TabsTrigger>
-            <TabsTrigger value="management">数据汇总</TabsTrigger>
-          </TabsList>
-          <Link href="/dashboard">
-            <Button className="gap-2 bg-primary hover:bg-primary/90 px-8">
-              <LayoutDashboard className="h-4 w-4" />
-              全局总览
-            </Button>
-          </Link>
+          {canViewGlobalData ? (
+            <TabsList className="grid grid-cols-2 w-[400px]">
+              <TabsTrigger value="overview">店铺总览</TabsTrigger>
+              <TabsTrigger value="management">数据汇总</TabsTrigger>
+            </TabsList>
+          ) : (
+            <TabsList className="w-[200px]">
+              <TabsTrigger value="overview" className="w-full">店铺总览</TabsTrigger>
+            </TabsList>
+          )}
+          {canViewGlobalData && (
+            <Link href="/dashboard">
+              <Button className="gap-2 bg-primary hover:bg-primary/90 px-8">
+                <LayoutDashboard className="h-4 w-4" />
+                全局总览
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* 店铺总览视图 */}
@@ -319,7 +332,8 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
           )}
         </TabsContent>
 
-        {/* 数据汇总视图 */}
+        {/* 数据汇总视图 - 仅 owner 和 accountant 可见 */}
+        {canViewGlobalData && (
         <TabsContent value="management" className="space-y-6 mt-6">
           <div className="grid gap-4 md:grid-cols-3">
             {/* 收支表汇总卡片 */}
@@ -486,6 +500,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
     </div>
   )
