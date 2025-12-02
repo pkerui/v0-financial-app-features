@@ -3,11 +3,11 @@
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
-import { login } from '@/lib/auth/actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { login } from '@/lib/auth/actions'
 import { Lock, User, AlertCircle } from 'lucide-react'
 
 function SubmitButton() {
@@ -24,7 +24,10 @@ function SubmitButton() {
   )
 }
 
-export function LoginForm() {
+/**
+ * 移动端登录表单组件 - 与桌面端保持一致
+ */
+export function MobileLoginForm() {
   const [state, formAction] = useActionState(login, {})
 
   return (
@@ -40,6 +43,9 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
+          {/* 移动端登录后跳转到移动端首页 */}
+          <input type="hidden" name="redirectTo" value="/m" />
+
           {state.error && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               <AlertCircle className="h-4 w-4" />
@@ -76,7 +82,7 @@ export function LoginForm() {
                 密码
               </Label>
               <Link
-                href="/forgot-password"
+                href="/m/forgot-password"
                 className="text-xs text-muted-foreground hover:text-primary transition-colors"
               >
                 忘记密码？
@@ -98,3 +104,6 @@ export function LoginForm() {
     </Card>
   )
 }
+
+// 保留旧的导出以兼容
+export { MobileLoginForm as MobileLoginPage }

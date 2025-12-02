@@ -23,7 +23,10 @@ function SubmitButton() {
   )
 }
 
-export function RegisterOwnerForm() {
+/**
+ * 移动端老板注册表单组件 - 与桌面端保持一致
+ */
+export function MobileRegisterOwnerForm() {
   const [state, formAction] = useActionState(registerOwner, {})
 
   return (
@@ -39,6 +42,9 @@ export function RegisterOwnerForm() {
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
+          {/* 移动端注册后跳转到移动端首页 */}
+          <input type="hidden" name="redirectTo" value="/m" />
+
           {state.error && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />

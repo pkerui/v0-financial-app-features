@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -178,6 +179,31 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
 
   // 删除确认对话框状态
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Supabase Realtime 订阅 - 监听交易数据变化
+  useEffect(() => {
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel('transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 监听所有事件 (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'transactions',
+        },
+        () => {
+          // 当数据变化时刷新页面
+          router.refresh()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   // 过滤和排序
   const filteredTransactions = transactions

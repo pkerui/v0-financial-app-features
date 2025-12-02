@@ -69,6 +69,7 @@ export async function registerOwner(prevState: FormState, formData: FormData): P
   const fullName = formData.get('fullName') as string
   const companyName = formData.get('companyName') as string
   const recoveryEmail = formData.get('email') as string || ''
+  const redirectTo = formData.get('redirectTo') as string || '/stores'
 
   // 验证输入
   const validation = registerOwnerSchema.safeParse({
@@ -165,7 +166,7 @@ export async function registerOwner(prevState: FormState, formData: FormData): P
   }
 
   // 首次注册跳转到店铺管理，让用户先创建店铺
-  redirect('/stores')
+  redirect(redirectTo)
 }
 
 /**
@@ -174,6 +175,7 @@ export async function registerOwner(prevState: FormState, formData: FormData): P
 export async function login(prevState: FormState, formData: FormData): Promise<FormState> {
   const username = formData.get('username') as string
   const password = formData.get('password') as string
+  const redirectTo = formData.get('redirectTo') as string || '/stores'
 
   // 验证输入
   const validation = loginSchema.safeParse({ username, password })
@@ -196,7 +198,7 @@ export async function login(prevState: FormState, formData: FormData): Promise<F
     return { error: '用户名或密码错误' }
   }
 
-  redirect('/stores')
+  redirect(redirectTo)
 }
 
 /**

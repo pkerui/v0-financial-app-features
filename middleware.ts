@@ -1,6 +1,43 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// 检测是否为移动设备
+function isMobileDevice(userAgent: string): boolean {
+  return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(userAgent)
+}
+
+// 桌面端路由到移动端路由的映射
+function getDesktopToMobileRoute(pathname: string): string {
+  const routeMap: Record<string, string> = {
+    '/': '/m',
+    '/login': '/m/login',
+    '/stores': '/m',
+    '/dashboard': '/m',
+    '/transactions': '/m/transactions',
+    '/income': '/m/add?type=income',
+    '/expense': '/m/add?type=expense',
+    '/voice-entry': '/m/add',
+    '/cash-flow': '/m/report',
+    '/profit-loss': '/m/report',
+    '/settings': '/m',
+  }
+
+  // 精确匹配
+  if (routeMap[pathname]) {
+    return routeMap[pathname]
+  }
+
+  // 前缀匹配
+  for (const [desktop, mobile] of Object.entries(routeMap)) {
+    if (pathname.startsWith(desktop + '/')) {
+      return mobile
+    }
+  }
+
+  // 默认跳转到移动端首页
+  return '/m'
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -34,18 +71,54 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const pathname = request.nextUrl.pathname
+  const userAgent = request.headers.get('user-agent') || ''
+  const isMobile = isMobileDevice(userAgent)
+
+  // ============================================
+  // 移动端设备路由处理
+  // ============================================
+  if (isMobile) {
+    // 移动端访问桌面端路由，重定向到移动端
+    if (!pathname.startsWith('/m') && !pathname.startsWith('/api') && !pathname.startsWith('/auth')) {
+      const mobileRoute = getDesktopToMobileRoute(pathname)
+      return NextResponse.redirect(new URL(mobileRoute, request.url))
+    }
+
+    // 移动端保护路由（需要登录）
+    const mobileProtectedRoutes = ['/m/transactions', '/m/add', '/m/report']
+    const isMobileProtectedRoute = mobileProtectedRoutes.some((route) =>
+      pathname.startsWith(route)
+    ) || (pathname === '/m')
+
+    if (isMobileProtectedRoute && !user) {
+      return NextResponse.redirect(new URL('/m/login', request.url))
+    }
+
+    // 移动端已登录用户访问登录页，重定向到移动端首页
+    if (pathname === '/m/login' && user) {
+      return NextResponse.redirect(new URL('/m', request.url))
+    }
+
+    return response
+  }
+
+  // ============================================
+  // 桌面端路由处理
+  // ============================================
+
   // 保护需要登录的路由
-  const protectedRoutes = ['/dashboard', '/voice-entry', '/income', '/expense']
+  const protectedRoutes = ['/dashboard', '/voice-entry', '/income', '/expense', '/stores', '/transactions', '/cash-flow', '/profit-loss', '/settings']
   const isProtectedRoute = protectedRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+    pathname.startsWith(route)
   )
 
   if (isProtectedRoute && !user) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 如果已登录用户访问登录页，重定向到 dashboard
-  if (request.nextUrl.pathname === '/' && user) {
+  // 如果已登录用户访问首页或登录页，重定向到 dashboard
+  if ((pathname === '/' || pathname === '/login') && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

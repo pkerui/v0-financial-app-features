@@ -16,13 +16,54 @@ export class TencentASR {
     onError: (error: string) => void
   ): Promise<() => void> {
     try {
+      // 检查是否为安全上下文（HTTPS 或 localhost）
+      const isSecureContext = window.isSecureContext
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+      if (!isSecureContext && !isLocalhost) {
+        onError('录音功能需要 HTTPS 环境。请使用 https:// 访问网站，或在本地使用 localhost')
+        return () => {}
+      }
+
+      // 检查浏览器是否支持 getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        onError('您的浏览器不支持录音功能，请使用 Chrome、Safari 或 Firefox 最新版本')
+        return () => {}
+      }
+
       // 请求麦克风权限
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (permissionError: any) {
+        console.error('麦克风权限错误:', permissionError)
+        if (permissionError.name === 'NotAllowedError' || permissionError.name === 'PermissionDeniedError') {
+          onError('麦克风权限被拒绝，请在浏览器设置中允许访问麦克风')
+        } else if (permissionError.name === 'NotFoundError') {
+          onError('未检测到麦克风设备')
+        } else if (permissionError.name === 'NotReadableError') {
+          onError('麦克风被其他应用占用')
+        } else {
+          onError('无法访问麦克风: ' + (permissionError.message || '未知错误'))
+        }
+        return () => {}
+      }
+
+      // 检测支持的音频格式
+      let mimeType = 'audio/webm'
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4'
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg'
+        } else {
+          // 使用默认格式
+          mimeType = ''
+        }
+      }
 
       // 创建 MediaRecorder
-      this.mediaRecorder = new MediaRecorder(this.stream, {
-        mimeType: 'audio/webm',
-      })
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {}
+      this.mediaRecorder = new MediaRecorder(this.stream, options)
 
       this.audioChunks = []
 
@@ -48,9 +89,9 @@ export class TencentASR {
 
       // 返回停止函数
       return () => this.stopRecording()
-    } catch (error) {
+    } catch (error: any) {
       console.error('启动录音失败:', error)
-      onError('无法访问麦克风,请检查浏览器权限')
+      onError('录音初始化失败: ' + (error.message || '未知错误'))
       return () => {}
     }
   }

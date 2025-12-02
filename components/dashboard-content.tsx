@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
@@ -9,6 +10,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { logout } from '@/lib/auth/actions'
 import { MultiStoreSelector } from '@/components/multi-store-selector'
+import { createClient } from '@/lib/supabase/client'
 
 type Transaction = {
   id: string
@@ -52,6 +54,31 @@ export function DashboardContent({
   selectedStores
 }: DashboardContentProps) {
   const router = useRouter()
+
+  // Supabase Realtime 订阅 - 监听交易数据变化
+  useEffect(() => {
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel('dashboard-transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 监听所有事件 (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'transactions',
+        },
+        () => {
+          // 当数据变化时刷新页面
+          router.refresh()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   // 处理店铺选择变化
   const handleStoreSelectionChange = (storeIds: string[]) => {
