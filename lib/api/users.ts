@@ -196,7 +196,23 @@ export async function updateUserRole(
     updateData.managed_store_ids = []
   }
 
-  const { error } = await supabase
+  // 使用 Admin API 来更新角色（绕过 RLS 策略）
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('缺少 Supabase 配置')
+    return { error: '系统配置错误，请联系管理员' }
+  }
+
+  const adminClient = createAdminClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  const { error } = await adminClient
     .from('profiles')
     .update(updateData)
     .eq('id', userId)
@@ -256,12 +272,29 @@ export async function updateUserStores(
     return { error: '此角色不需要指定店铺' }
   }
 
-  const { error } = await supabase
+  // 使用 Admin API 来更新店铺（绕过 RLS 策略）
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('缺少 Supabase 配置')
+    return { error: '系统配置错误，请联系管理员' }
+  }
+
+  const adminClient = createAdminClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  const { error } = await adminClient
     .from('profiles')
     .update({ managed_store_ids: storeIds })
     .eq('id', userId)
 
   if (error) {
+    console.error('更新用户店铺失败:', error)
     return { error: '更新用户店铺失败' }
   }
 
@@ -271,7 +304,7 @@ export async function updateUserStores(
 }
 
 // ============================================
-// 移除用户（从公司中移除）
+// 移除用户（从公司中移除，并删除用户账号）
 // ============================================
 
 export async function removeUser(userId: string): Promise<{ error: string | null }> {
@@ -317,18 +350,29 @@ export async function removeUser(userId: string): Promise<{ error: string | null
     return { error: '不能移除老板' }
   }
 
-  // 移除用户（清除 company_id 和权限）
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      company_id: null,
-      role: 'user',
-      managed_store_ids: [],
-    })
-    .eq('id', userId)
+  // 使用 Admin API 来删除用户（绕过 RLS 策略）
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('缺少 Supabase 配置')
+    return { error: '系统配置错误，请联系管理员' }
+  }
+
+  const adminClient = createAdminClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  // 完全删除用户（包括 Auth 记录和 Profile 记录）
+  // 这样用户名可以被重新使用
+  const { error } = await adminClient.auth.admin.deleteUser(userId)
 
   if (error) {
-    return { error: '移除用户失败' }
+    console.error('删除用户失败:', error)
+    return { error: '删除用户失败: ' + error.message }
   }
 
   revalidatePath('/stores/settings')

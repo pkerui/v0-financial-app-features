@@ -60,7 +60,7 @@ export function SummaryCards({ metrics, startDate, endDate }: SummaryCardsProps)
           <p className="text-sm text-muted-foreground">
             {metrics.incomeCount} 笔 · 平均每店 ¥{formatCurrency(metrics.avgIncomePerStore)}
           </p>
-          <Link href={`/income?startDate=${startDate}&endDate=${endDate}`}>
+          <Link href={`/income?startDate=${startDate}&endDate=${endDate}&stores=all`}>
             <Button variant="outline" size="sm" className="w-full gap-2">
               <BarChart3 className="h-4 w-4" />
               查看详细数据
@@ -84,7 +84,7 @@ export function SummaryCards({ metrics, startDate, endDate }: SummaryCardsProps)
           <p className="text-sm text-muted-foreground">
             {metrics.expenseCount} 笔 · 平均每店 ¥{formatCurrency(metrics.avgExpensePerStore)}
           </p>
-          <Link href={`/expense?startDate=${startDate}&endDate=${endDate}`}>
+          <Link href={`/expense?startDate=${startDate}&endDate=${endDate}&stores=all`}>
             <Button variant="outline" size="sm" className="w-full gap-2">
               <BarChart3 className="h-4 w-4" />
               查看详细数据

@@ -94,17 +94,16 @@ export function DashboardContent({
     }
   }
 
-  // 生成带店铺参数的URL - 保持单店上下文
+  // 生成带店铺参数的URL - 保持店铺上下文
   const buildUrl = (basePath: string) => {
     if (currentStore) {
-      // 单店模式：保持 store 参数
+      // 单店模式（从店铺详情进入）：保持 store 参数
       return `${basePath}?store=${currentStore.id}`
-    } else if (selectedStores.length > 0) {
-      // 多店模式：保持 stores 参数
-      return `${basePath}?stores=${selectedStores.map(s => s.id).join(',')}`
     }
-    // 全局模式：不带参数
-    return basePath
+    // 全局模式：始终使用 stores=all，确保目标页面保持全局视图
+    // 注意：即使只有一家店铺，也使用 stores=all 而非 stores=<id>
+    // 单店模式只能从店铺管理中心的单店"查看详情"按钮进入
+    return `${basePath}?stores=all`
   }
 
   // 计算本月交易数量

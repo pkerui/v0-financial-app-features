@@ -67,7 +67,8 @@ export default async function TransactionsPage({ searchParams }: PageProps) {
   const { mode, storeId, storeIds } = getStoreModeServer(params)
 
   // 判断是否为全局模式（多店或全部店铺）
-  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
+  // 当 mode === 'all' 时，无论店铺数量多少，都视为全局模式（从店铺管理中心点击查看详细数据）
+  const isGlobalMode = mode === 'all' || (mode === 'multi' && stores && stores.length > 1)
 
   // 确定要查询的店铺列表
   const targetStores = isGlobalMode

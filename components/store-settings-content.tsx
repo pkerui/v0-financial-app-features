@@ -17,6 +17,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { toast } from 'sonner'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -71,7 +82,9 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
   const [stores, setStores] = useState<Store[]>(initialStores)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingStore, setEditingStore] = useState<Store | null>(null)
+  const [storeToDelete, setStoreToDelete] = useState<Store | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // 新增店铺表单
@@ -89,7 +102,7 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
 
   const handleAddStore = async () => {
     if (!newStore.name) {
-      alert('请输入店铺名称')
+      toast.error('请输入店铺名称')
       return
     }
 
@@ -102,7 +115,7 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
       }
       const { data, error } = await createStore(storeData)
       if (error) {
-        alert(`添加失败: ${error}`)
+        toast.error(`添加失败: ${error}`)
       } else if (data) {
         setStores([...stores, data])
         setIsAddDialogOpen(false)
@@ -117,10 +130,11 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
           initial_balance_date: '',
           initial_balance: '',
         })
+        toast.success('店铺添加成功')
         router.refresh()
       }
     } catch (err) {
-      alert('添加失败，请重试')
+      toast.error('添加失败，请重试')
     } finally {
       setIsSubmitting(false)
     }
@@ -143,35 +157,45 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
       })
 
       if (error) {
-        alert(`更新失败: ${error}`)
+        toast.error(`更新失败: ${error}`)
       } else if (data) {
         setStores(stores.map(s => s.id === data.id ? data : s))
         setIsEditDialogOpen(false)
         setEditingStore(null)
+        toast.success('店铺信息更新成功')
         router.refresh()
       }
     } catch (err) {
-      alert('更新失败，请重试')
+      toast.error('更新失败，请重试')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleDeleteStore = async (storeId: string) => {
-    if (!confirm('确定要删除这个店铺吗？此操作不可恢复。')) {
-      return
-    }
+  const handleDeleteClick = (store: Store) => {
+    setStoreToDelete(store)
+    setIsDeleteDialogOpen(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!storeToDelete) return
+
+    setIsSubmitting(true)
     try {
-      const { error } = await deleteStore(storeId)
+      const { error } = await deleteStore(storeToDelete.id)
       if (error) {
-        alert(`删除失败: ${error}`)
+        toast.error(`删除失败: ${error}`)
       } else {
-        setStores(stores.filter(s => s.id !== storeId))
+        setStores(stores.filter(s => s.id !== storeToDelete.id))
+        toast.success('店铺删除成功')
+        setIsDeleteDialogOpen(false)
+        setStoreToDelete(null)
         router.refresh()
       }
     } catch (err) {
-      alert('删除失败，请重试')
+      toast.error('删除失败，请重试')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -194,7 +218,7 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">系统设置</h1>
+            <h1 className="text-3xl font-bold text-foreground">管理设置</h1>
             <p className="text-muted-foreground">管理店铺和团队成员</p>
           </div>
         </div>
@@ -441,7 +465,7 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteStore(store.id)}
+                            onClick={() => handleDeleteClick(store)}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
@@ -573,6 +597,24 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除店铺「{storeToDelete?.name}」吗？此操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? '删除中...' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
         </TabsContent>
 
         {/* 团队管理 Tab */}

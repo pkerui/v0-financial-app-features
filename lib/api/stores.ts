@@ -373,41 +373,48 @@ export async function deleteStore(id: string): Promise<{ success: boolean; error
     }
 
     if (transactions && transactions.length > 0) {
-      // Soft delete: set status to 'closed'
-      const { error } = await supabase
-        .from('stores')
-        .update({
-          status: 'closed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-
-      if (error) {
-        return { success: false, error: `关闭店铺失败: ${error.message}` }
-      }
-
-      // Revalidate stores page
-      revalidatePath('/stores')
-      revalidatePath('/dashboard')
-
-      return { success: true, error: null }
-    } else {
-      // Hard delete if no transactions
-      const { error } = await supabase
-        .from('stores')
-        .delete()
-        .eq('id', id)
-
-      if (error) {
-        return { success: false, error: `删除店铺失败: ${error.message}` }
-      }
-
-      // Revalidate stores page
-      revalidatePath('/stores')
-      revalidatePath('/dashboard')
-
-      return { success: true, error: null }
+      // 有财务数据，拒绝删除
+      return { success: false, error: '该店铺有历史财务数据，无法删除。如需停用，请将店铺状态改为"已关闭"。' }
     }
+
+    // Check if store has associated users (managers/employees)
+    // 只检查 manager 和 user 角色，owner 和 accountant 有全局权限不需要检查
+    // managed_store_ids 是 UUID[] 类型，使用 contains 查询
+    const { data: associatedUsers, error: userError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('company_id', profile.company_id)
+      .in('role', ['manager', 'user'])
+      .contains('managed_store_ids', [id])
+
+    if (userError) {
+      console.error('Error checking associated users:', userError)
+      return { success: false, error: `检查店铺关联用户失败: ${userError.message}` }
+    }
+
+    if (associatedUsers && associatedUsers.length > 0) {
+      const userNames = associatedUsers.map(u => u.full_name || '未命名用户').join('、')
+      return {
+        success: false,
+        error: `该店铺有关联的团队成员（${userNames}），请先在团队管理中取消这些成员与该店铺的关联后再删除。`
+      }
+    }
+
+    // 无交易记录，可以删除
+    const { error } = await supabase
+      .from('stores')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return { success: false, error: `删除店铺失败: ${error.message}` }
+    }
+
+    // Revalidate stores page
+    revalidatePath('/stores')
+    revalidatePath('/dashboard')
+
+    return { success: true, error: null }
   } catch (error) {
     console.error('Error deleting store:', error)
     return { success: false, error: '删除店铺失败' }

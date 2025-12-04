@@ -43,11 +43,18 @@ export function getStoreModeServer(searchParams: { store?: string; stores?: stri
 
   // Priority 1: Multiple stores parameter
   if (multiStoreParam) {
+    // 特殊处理 'all' 值，直接返回全局模式
+    // 从全局总览页面导航时使用 stores=all 保持全局视图
+    if (multiStoreParam === 'all') {
+      return { mode: 'all', storeId: null, storeIds: [] }
+    }
+
     const storeIds = multiStoreParam.split(',').filter(Boolean)
     if (storeIds.length > 1) {
       return { mode: 'multi', storeId: null, storeIds }
     } else if (storeIds.length === 1) {
-      // Edge case: stores param with single ID
+      // Edge case: stores param with single ID - 仍视为单店模式
+      // 注意：从全局总览导航应使用 stores=all，不会进入这里
       return { mode: 'single', storeId: storeIds[0], storeIds: [storeIds[0]] }
     }
   }
@@ -89,6 +96,11 @@ export function getStoreModeClient(): StoreModeResult {
 
   // Priority 1: Multiple stores parameter
   if (multiStoreParam) {
+    // 特殊处理 'all' 值，直接返回全局模式
+    if (multiStoreParam === 'all') {
+      return { mode: 'all', storeId: null, storeIds: [] }
+    }
+
     const storeIds = multiStoreParam.split(',').filter(Boolean)
     if (storeIds.length > 1) {
       return { mode: 'multi', storeId: null, storeIds }

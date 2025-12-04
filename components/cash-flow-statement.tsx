@@ -67,6 +67,9 @@ export function CashFlowStatement({
       params.set('store', storeId)
     } else if (storeIds && storeIds.length > 0) {
       params.set('stores', storeIds.join(','))
+    } else if (isGlobalMode) {
+      // 全局模式下添加 stores=all 参数，确保明细页保持全局视图
+      params.set('stores', 'all')
     }
     return `${basePath}?${params.toString()}`
   }

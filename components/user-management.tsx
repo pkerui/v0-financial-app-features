@@ -259,7 +259,8 @@ export function UserManagement({ stores, currentUserId, currentUserRole }: UserM
 
   // 获取店铺名称
   const getStoreName = (storeId: string) => {
-    return stores.find((s) => s.id === storeId)?.name || storeId
+    const store = stores.find((s) => s.id === storeId)
+    return store?.name || '已删除的店铺'
   }
 
   // 权限检查
@@ -469,14 +470,14 @@ export function UserManagement({ stores, currentUserId, currentUserRole }: UserM
                               <AlertDialogHeader>
                                 <AlertDialogTitle>确认移除用户？</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  移除后，该用户将无法访问公司数据。此操作可以撤销（重新邀请）。
+                                  移除后，该用户将无法访问公司数据。
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>取消</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleRemoveUser(user.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  className="bg-destructive !text-white hover:bg-destructive/90"
                                 >
                                   确认移除
                                 </AlertDialogAction>

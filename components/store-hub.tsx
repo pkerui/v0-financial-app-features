@@ -375,7 +375,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
                   <div className="text-sm text-foreground border-t pt-2">
                     共 {metrics?.totalCount || 0} 笔交易 · {activeStores.length} 家店铺
                   </div>
-                  <Link href={`/transactions?stores=${activeStores.map(s => s.id).join(',')}&startDate=${startDate}&endDate=${endDate}`}>
+                  <Link href={`/transactions?stores=all&startDate=${startDate}&endDate=${endDate}`}>
                     <Button variant="outline" className="w-full gap-2">
                       <BarChart3 className="h-4 w-4" />
                       查看详细数据
@@ -425,7 +425,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
                   <div className="text-sm text-foreground border-t pt-2">
                     期初余额: {formatAmount(metrics?.beginningBalance || 0)}
                   </div>
-                  <Link href={`/cash-flow?startDate=${startDate}&endDate=${endDate}`}>
+                  <Link href={`/cash-flow?startDate=${startDate}&endDate=${endDate}&stores=all`}>
                     <Button variant="outline" className="w-full gap-2">
                       <BarChart3 className="h-4 w-4" />
                       查看详细数据
@@ -480,7 +480,7 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
                   <div className="text-sm text-foreground border-t pt-2">
                     营业收入: {formatAmount(metrics?.revenue || 0, 0)} · 营业成本: {formatAmount(-(metrics?.cost || 0), 0)}
                   </div>
-                  <Link href={`/profit-loss?startDate=${startDate}&endDate=${endDate}`}>
+                  <Link href={`/profit-loss?startDate=${startDate}&endDate=${endDate}&stores=all`}>
                     <Button variant="outline" className="w-full gap-2">
                       <BarChart3 className="h-4 w-4" />
                       查看详细数据

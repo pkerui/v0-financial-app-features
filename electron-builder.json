@@ -1,0 +1,75 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.finance.manager",
+  "productName": "财务管理系统",
+  "directories": {
+    "output": "dist-electron",
+    "buildResources": "build"
+  },
+  "files": [
+    "!**/.git",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+    "!**/node_modules/*.d.ts",
+    "!**/node_modules/.bin",
+    "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+    "!.editorconfig",
+    "!**/._*",
+    "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+    ".next/**/*",
+    "public/**/*",
+    "electron-dist/**/*",
+    "lib/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": ".",
+      "to": "app",
+      "filter": [
+        ".next/**/*",
+        "public/**/*",
+        "lib/**/*",
+        "package.json",
+        "next.config.js",
+        "next.config.mjs",
+        "node_modules/**/*"
+      ]
+    }
+  ],
+  "mac": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["arm64", "x64"]
+      }
+    ],
+    "category": "public.app-category.finance",
+    "icon": "build/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "build/icon.ico",
+    "uninstallerIcon": "build/icon.ico"
+  },
+  "linux": {
+    "target": ["AppImage"],
+    "category": "Finance",
+    "icon": "build/icon.png"
+  },
+  "asar": false,
+  "npmRebuild": true,
+  "nodeGypRebuild": false
+}

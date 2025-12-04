@@ -38,7 +38,8 @@ export default async function ProfitLossAllPage({ searchParams }: PageProps) {
   const { data: stores } = await getActiveStores()
 
   // 判断是否为全局模式
-  const isGlobalMode = (mode === 'multi' || mode === 'all') && stores && stores.length > 1
+  // 当 mode === 'all' 时，无论店铺数量多少，都视为全局模式（从店铺管理中心点击查看详细数据）
+  const isGlobalMode = mode === 'all' || (mode === 'multi' && stores && stores.length > 1)
 
   // 获取店铺信息（如果是单店模式）
   let storeName: string | undefined
