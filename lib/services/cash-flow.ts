@@ -406,6 +406,25 @@ export function calculateBeginningBalance(
 }
 
 /**
+ * 将日期字符串规范化为 YYYY-MM-DD 格式（去除时间和时区）
+ * 解决 JavaScript Date 解析的时区问题
+ */
+function normalizeToDateString(dateStr: string): string {
+  // 只取前10个字符 (YYYY-MM-DD)
+  return dateStr.slice(0, 10)
+}
+
+/**
+ * 比较两个日期字符串（只比较日期部分，忽略时间和时区）
+ * 返回: -1 (a < b), 0 (a = b), 1 (a > b)
+ */
+function compareDateStrings(a: string, b: string): number {
+  const dateA = normalizeToDateString(a)
+  const dateB = normalizeToDateString(b)
+  return dateA.localeCompare(dateB)
+}
+
+/**
  * 计算多店合并现金流量表
  *
  * 合并逻辑：
@@ -432,11 +451,12 @@ export function calcConsolidatedCashFlow(
       // 没有设置期初日期的店铺，视为已存在
       existingStores.push(store)
     } else {
-      const storeStartDate = new Date(store.initial_balance_date)
-      if (storeStartDate <= queryStart) {
-        // 店铺在查询开始前已存在
+      // 使用日期字符串比较，避免时区问题
+      const comparison = compareDateStrings(store.initial_balance_date, queryStartDate)
+      if (comparison <= 0) {
+        // 店铺在查询开始日或之前已存在
         existingStores.push(store)
-      } else if (storeStartDate <= queryEnd) {
+      } else if (compareDateStrings(store.initial_balance_date, queryEndDate) <= 0) {
         // 店铺在查询期间内开业（新店）
         newStores.push(store)
       }
@@ -647,18 +667,18 @@ export function calculateConsolidatedMonthlyCashFlow(
   let currentBeginningBalance = 0
 
   // 确定在查询开始日期时已存在的店铺及其余额
-  const queryStartDate = startDate
+  const queryStartDateStr = startDate.toISOString().split('T')[0]
   stores.forEach(store => {
     if (!store.initial_balance_date) return
 
-    const storeStartDate = new Date(store.initial_balance_date)
-    if (storeStartDate <= queryStartDate) {
-      // 店铺在查询开始前已存在，计算其在查询开始时的余额
+    // 使用日期字符串比较，避免时区问题
+    if (compareDateStrings(store.initial_balance_date, queryStartDateStr) <= 0) {
+      // 店铺在查询开始日或之前已存在，计算其在查询开始时的余额
       const storeTransactions = transactions.filter(t => t.store_id === store.id)
       const storeBeginningBalance = calculateBeginningBalance(
         store.initial_balance,
         store.initial_balance_date,
-        queryStartDate.toISOString().split('T')[0],
+        queryStartDateStr,
         storeTransactions
       )
       currentBeginningBalance += storeBeginningBalance
@@ -669,8 +689,10 @@ export function calculateConsolidatedMonthlyCashFlow(
   const processedNewStores = new Set<string>()
 
   allMonths.forEach(monthKey => {
+    const monthStartStr = monthKey + '-01'
     const monthStart = new Date(monthKey + '-01')
     const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
+    const monthEndStr = monthEnd.toISOString().split('T')[0]
 
     // 获取本月交易
     const monthTransactions = monthlyTransactions.get(monthKey) || []
@@ -683,9 +705,13 @@ export function calculateConsolidatedMonthlyCashFlow(
     stores.forEach(store => {
       if (!store.initial_balance_date || processedNewStores.has(store.id)) return
 
-      const storeStartDate = new Date(store.initial_balance_date)
+      // 使用日期字符串比较，避免时区问题
+      const storeVsQueryStart = compareDateStrings(store.initial_balance_date, queryStartDateStr)
+      const storeVsMonthStart = compareDateStrings(store.initial_balance_date, monthStartStr)
+      const storeVsMonthEnd = compareDateStrings(store.initial_balance_date, monthEndStr)
+
       // 新店开业日期在本月内（不含查询开始日期之前已存在的店铺）
-      if (storeStartDate > queryStartDate && storeStartDate >= monthStart && storeStartDate <= monthEnd) {
+      if (storeVsQueryStart > 0 && storeVsMonthStart >= 0 && storeVsMonthEnd <= 0) {
         newStoreCapitalThisMonth += store.initial_balance
         processedNewStores.add(store.id)
       }

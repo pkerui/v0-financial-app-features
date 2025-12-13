@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -68,6 +67,7 @@ type Transaction = {
   payment_method?: string | null
   cash_flow_activity?: 'operating' | 'investing' | 'financing' | null
   transaction_nature?: 'operating' | 'non_operating' | 'income_tax' | null
+  include_in_profit_loss?: boolean | null
   store_id?: string | null
   created_by?: string | null
 }
@@ -83,6 +83,7 @@ type TransactionCategory = {
   name: string
   cash_flow_activity: 'operating' | 'investing' | 'financing'
   transaction_nature: 'operating' | 'non_operating' | 'income_tax' | null
+  include_in_profit_loss?: boolean
 }
 
 type TransactionsTableProps = {
@@ -180,28 +181,17 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
   // 删除确认对话框状态
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Supabase Realtime 订阅 - 监听交易数据变化
+  // 页面可见性变化时刷新数据 - 支持 LeanCloud 和 Supabase 模式
   useEffect(() => {
-    const supabase = createClient()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        router.refresh()
+      }
+    }
 
-    const channel = supabase
-      .channel('transactions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // 监听所有事件 (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'transactions',
-        },
-        () => {
-          // 当数据变化时刷新页面
-          router.refresh()
-        }
-      )
-      .subscribe()
-
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
-      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [router])
 
@@ -218,7 +208,14 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
       // 现金流活动筛选 - 多选：如果有选中的活动，检查交易是否在其中
       if (selectedActivities.length > 0 && !selectedActivities.includes(t.cash_flow_activity || '')) return false
       // 交易性质筛选 - 多选
-      if (selectedNatures.length > 0 && !selectedNatures.includes(t.transaction_nature || '')) return false
+      if (selectedNatures.length > 0) {
+        // 处理"不适用"的情况 (include_in_profit_loss === false)
+        if (t.include_in_profit_loss === false) {
+          if (!selectedNatures.includes('not_applicable')) return false
+        } else {
+          if (!selectedNatures.includes(t.transaction_nature || '')) return false
+        }
+      }
       // 店铺筛选 - 多选
       if (selectedStores.length > 0 && !selectedStores.includes(t.store_id || '')) return false
       return true
@@ -427,7 +424,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
 
           {/* 表格 */}
           <div className="rounded-md border overflow-x-auto">
-            <Table className="table-fixed w-full">
+            <Table className="w-full min-w-[1000px]">
               <TableHeader>
                 <TableRow>
                   {/* 日期列 - 包含年月筛选 */}
@@ -441,8 +438,6 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                             onDateChange={handleDateChange}
                             minDate={initialBalanceDate}
                             buttonSize="sm"
-                            buttonVariant="ghost"
-                            buttonClassName="h-8 px-2"
                             align="start"
                           />
                           <Button
@@ -734,7 +729,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 px-2 text-xs"
-                                  onClick={() => setSelectedNatures(['operating', 'non_operating', 'income_tax'])}
+                                  onClick={() => setSelectedNatures(['operating', 'non_operating', 'income_tax', 'not_applicable'])}
                                 >
                                   全选
                                 </Button>
@@ -753,6 +748,7 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                                 { value: 'operating', label: '营业内' },
                                 { value: 'non_operating', label: '营业外' },
                                 { value: 'income_tax', label: '所得税' },
+                                { value: 'not_applicable', label: '不适用' },
                               ].map(nature => (
                                 <div key={nature.value} className="flex items-center space-x-2">
                                   <Checkbox
@@ -834,17 +830,23 @@ export function TransactionsTable({ transactions, type, initialStartDate, initia
                         <ActivityBadge activity={transaction.cash_flow_activity} />
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          transaction.transaction_nature === 'non_operating'
-                            ? 'bg-amber-100 text-amber-800'
-                            : transaction.transaction_nature === 'income_tax'
-                            ? 'bg-purple-100 text-purple-800'
-                            : transaction.transaction_nature === 'operating'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {transaction.transaction_nature === 'non_operating' ? '营业外' : transaction.transaction_nature === 'income_tax' ? '所得税' : transaction.transaction_nature === 'operating' ? '营业内' : '-'}
-                        </span>
+                        {transaction.include_in_profit_loss === false ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                            不适用
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            transaction.transaction_nature === 'non_operating'
+                              ? 'bg-amber-100 text-amber-800'
+                              : transaction.transaction_nature === 'income_tax'
+                              ? 'bg-purple-100 text-purple-800'
+                              : transaction.transaction_nature === 'operating'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {transaction.transaction_nature === 'non_operating' ? '营业外' : transaction.transaction_nature === 'income_tax' ? '所得税' : transaction.transaction_nature === 'operating' ? '营业内' : '-'}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="max-w-xs truncate">
                         {transaction.description || '-'}

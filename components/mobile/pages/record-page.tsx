@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Mic, MicOff, Keyboard, Send, Loader2, Check, X, Plus, Store as StoreIcon, ChevronDown, Pencil } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { startTencentASR } from '@/lib/utils/tencent-asr'
-import { createTransaction } from '@/lib/api/transactions'
+import { createTransaction } from '@/lib/backend/transactions'
 import { useRouter } from 'next/navigation'
 import { getToday } from '@/lib/utils/date'
-import type { TransactionCategory } from '@/lib/api/transaction-categories'
-import type { Store } from '@/lib/api/stores'
+import type { TransactionCategory } from '@/lib/backend/categories'
+import type { Store } from '@/lib/backend/stores'
 
 interface ParsedTransaction {
   type: 'income' | 'expense'
@@ -25,6 +25,11 @@ interface MobileRecordPageProps {
   incomeCategories: TransactionCategory[]
   expenseCategories: TransactionCategory[]
   stores: Store[]
+}
+
+// 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
+function getCategoryActivity(category: TransactionCategory | any): string {
+  return category.cash_flow_activity || category.cashFlowActivity || 'operating'
 }
 
 /**
@@ -113,8 +118,8 @@ export function MobileRecordPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
-          expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
+          incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
+          expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
         }),
       })
 
@@ -210,7 +215,7 @@ export function MobileRecordPage({
           ...t,
           type: newType,
           category: defaultCategory,
-          cash_flow_activity: categories[0]?.cash_flow_activity
+          cash_flow_activity: categories[0] ? getCategoryActivity(categories[0]) : 'operating'
         }
       }
 
@@ -221,7 +226,7 @@ export function MobileRecordPage({
         return {
           ...t,
           category: value as string,
-          cash_flow_activity: selectedCat?.cash_flow_activity
+          cash_flow_activity: selectedCat ? getCategoryActivity(selectedCat) : 'operating'
         }
       }
 

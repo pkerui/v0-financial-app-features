@@ -1,11 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
 import { MobileRecordPage } from '@/components/mobile/pages/record-page'
-import { getTransactionCategories, TransactionCategory } from '@/lib/api/transaction-categories'
-import { getStores, Store } from '@/lib/api/stores'
+import { getTransactionCategories, type TransactionCategory } from '@/lib/backend/categories'
+import { getStores, type Store } from '@/lib/backend/stores'
+import { getUser } from '@/lib/backend/auth'
 
 export default async function MobileRecord() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return null
@@ -13,13 +12,13 @@ export default async function MobileRecord() {
 
   // 获取分类
   const categoriesResult = await getTransactionCategories()
-  const allCategories = (categoriesResult as { data?: TransactionCategory[] }).data || []
+  const allCategories = categoriesResult.data || []
   const incomeCategories = allCategories.filter(c => c.type === 'income')
   const expenseCategories = allCategories.filter(c => c.type === 'expense')
 
   // 获取店铺
   const storesResult = await getStores()
-  const stores = (storesResult as { data?: Store[] }).data || []
+  const stores = storesResult.data || []
 
   return (
     <MobileRecordPage

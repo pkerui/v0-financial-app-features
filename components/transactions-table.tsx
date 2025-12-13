@@ -168,7 +168,7 @@ export function TransactionsTable({ transactions, type, onDelete, onEdit }: Tran
 
         {/* 表格 */}
         <div className="rounded-md border overflow-x-auto">
-          <Table className="table-fixed w-full">
+          <Table className="w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>

@@ -25,6 +25,10 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.leancloud
+
+# electron build output
+/dist-electron/
 
 # vercel
 .vercel

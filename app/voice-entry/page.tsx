@@ -1,35 +1,35 @@
 import { VoiceEntryInterface } from '@/components/voice-entry-interface'
-import { getTransactionCategories } from '@/lib/api/transaction-categories'
-import { getFinancialSettings } from '@/lib/api/financial-settings'
-import { getActiveStores } from '@/lib/api/stores'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { detectBackend } from '@/lib/backend/detector'
+import { getServerUser } from '@/lib/auth/server'
+import { getTransactionCategories } from '@/lib/backend/categories'
+import { getActiveStores } from '@/lib/backend/stores'
+import { getFinancialSettings } from '@/lib/backend/financial-settings'
 
 type PageProps = {
   searchParams: Promise<{ store?: string }>
 }
 
 export default async function VoiceEntryPage({ searchParams }: PageProps) {
-  const supabase = await createClient()
+  const backend = detectBackend()
   const params = await searchParams
 
-  // 获取当前用户
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 使用统一认证 API 获取当前用户
+  const user = await getServerUser()
 
   if (!user) {
     redirect('/')
   }
 
-  // 获取分类数据
-  const { data: incomeCategories } = await getTransactionCategories('income')
-  const { data: expenseCategories } = await getTransactionCategories('expense')
+  // 获取分类数据（使用统一后端 API）
+  const { data: allCategories } = await getTransactionCategories()
+  const incomeCategories = allCategories?.filter(c => c.type === 'income') || []
+  const expenseCategories = allCategories?.filter(c => c.type === 'expense') || []
 
-  // 获取财务设置
+  // 获取财务设置（使用统一后端 API）
   const { data: financialSettings } = await getFinancialSettings()
 
-  // 获取活跃店铺列表
+  // 获取活跃店铺列表（使用统一后端 API）
   const { data: stores } = await getActiveStores()
 
   return (

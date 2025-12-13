@@ -62,14 +62,14 @@ import {
   deleteInvitation,
   resendInvitation,
   type Invitation,
-} from '@/lib/api/invitations'
+} from '@/lib/backend/invitations'
 import {
   getCompanyUsers,
   updateUserRole,
   updateUserStores,
   removeUser,
   type CompanyUser,
-} from '@/lib/api/users'
+} from '@/lib/backend/users'
 import { getRoleName, getInvitableRoles, type UserRole } from '@/lib/auth/permissions'
 
 interface Store {

@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { detectBackend } from '@/lib/backend/detector'
+import { getServerUser, getServerProfile } from '@/lib/auth/server'
 import { DashboardContent } from '@/components/dashboard-content'
-import { getActiveStores } from '@/lib/api/stores'
+import { getActiveStores } from '@/lib/backend/stores'
+import { getTransactions } from '@/lib/backend/transactions'
 import type { UserRole } from '@/lib/auth/permissions'
 
 type PageProps = {
@@ -9,7 +11,7 @@ type PageProps = {
 }
 
 export default async function DashboardPage({ searchParams }: PageProps) {
-  const supabase = await createClient()
+  const backend = detectBackend()
   const params = await searchParams
 
   // 支持三种模式：
@@ -27,21 +29,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const selectedStoreIds = multiStoreIds
     || (singleStoreId ? [singleStoreId] : (allStores?.map(s => s.id) || []))
 
-  // 获取当前用户
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 使用统一的认证辅助函数获取用户
+  const user = await getServerUser()
 
   if (!user) {
     redirect('/')
   }
 
-  // 获取用户配置（包含角色）
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('company_id, role')
-    .eq('id', user.id)
-    .single()
+  // 使用统一的认证辅助函数获取 profile
+  const profile = await getServerProfile()
 
   if (!profile?.company_id) {
     return (
@@ -76,18 +72,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ? selectedStores[0] || null
     : null
 
-  // 获取交易记录（根据选中的店铺过滤）
-  let query = supabase
-    .from('transactions')
-    .select('*')
-    .eq('company_id', profile.company_id)
+  // 获取交易记录（使用统一后端 API）
+  // 注意：统一 API 会自动处理不同后端的认证和数据获取
+  const transactionResult = await getTransactions()
+  let transactions = transactionResult.data || []
 
+  // 如果指定了店铺，在客户端过滤
   if (selectedStoreIds.length > 0) {
-    // 多店或单店过滤
-    query = query.in('store_id', selectedStoreIds)
+    transactions = transactions.filter(t =>
+      t.storeId && selectedStoreIds.includes(t.storeId)
+    )
   }
 
-  const { data: transactions } = await query.order('date', { ascending: false })
+  // 按日期排序
+  transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   // 计算总收入和总支出
   const totalIncome = transactions

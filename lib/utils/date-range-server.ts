@@ -12,6 +12,7 @@
 
 import { getStoreInitialBalanceDate, getEarliestStoreInitialBalanceDate } from '@/lib/api/stores'
 import { getFirstDayOfMonth, getToday } from '@/lib/utils/date'
+import { detectBackend } from '@/lib/backend/detector'
 
 /**
  * 日期范围验证结果
@@ -89,14 +90,45 @@ export async function validateDateRange(
   // 优先级：店铺级别 > 公司最早店铺日期 > 公司级别财务设置
   let initialBalanceDateStr: string | null = null
 
-  if (options?.storeId) {
-    // 单店模式：使用该店铺的期初日期
-    const { data: storeData } = await getStoreInitialBalanceDate(options.storeId)
-    initialBalanceDateStr = storeData?.initial_balance_date || null
+  const backend = detectBackend()
+
+  if (backend === 'leancloud') {
+    // LeanCloud 模式：从 Store 表获取期初日期
+    const { StoreModel, ProfileModel } = await import('@/lib/leancloud/models')
+    const { getLCSession } = await import('@/lib/leancloud/cookies')
+
+    if (options?.storeId) {
+      // 单店模式：使用该店铺的期初日期
+      const { data: store } = await StoreModel.getById(options.storeId)
+      initialBalanceDateStr = store?.initialBalanceDate || null
+    } else {
+      // 公司/汇总模式：获取用户公司下所有店铺，找最早的期初日期
+      const session = await getLCSession()
+      if (session) {
+        const { data: profile } = await ProfileModel.getByUserId(session.userId)
+        if (profile?.companyId) {
+          const { data: stores } = await StoreModel.getByCompanyId(profile.companyId)
+          if (stores && stores.length > 0) {
+            const dates = stores
+              .map(s => s.initialBalanceDate)
+              .filter((d): d is string => !!d)
+              .sort()
+            initialBalanceDateStr = dates[0] || null
+          }
+        }
+      }
+    }
   } else {
-    // 公司/汇总模式：使用所有店铺中最早的期初日期
-    const { data: earliestDate } = await getEarliestStoreInitialBalanceDate()
-    initialBalanceDateStr = earliestDate
+    // Supabase 模式：使用原有的 API 函数
+    if (options?.storeId) {
+      // 单店模式：使用该店铺的期初日期
+      const { data: storeData } = await getStoreInitialBalanceDate(options.storeId)
+      initialBalanceDateStr = storeData?.initial_balance_date || null
+    } else {
+      // 公司/汇总模式：使用所有店铺中最早的期初日期
+      const { data: earliestDate } = await getEarliestStoreInitialBalanceDate()
+      initialBalanceDateStr = earliestDate
+    }
   }
 
   // 不再回退到公司级别财务设置，统一使用店铺数据

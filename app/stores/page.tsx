@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { getStores } from '@/lib/api/stores'
+import { getServerUser, getServerProfile } from '@/lib/auth/server'
+import { getActiveStores } from '@/lib/backend/stores'
 import { StoreHub } from '@/components/store-hub'
 import { validateDateRangeFromParams } from '@/lib/utils/date-range-server'
 import { getStoreHubMetrics } from '@/lib/features/store-hub'
@@ -12,27 +12,19 @@ type PageProps = {
 }
 
 export default async function StoresPage({ searchParams }: PageProps) {
-  const supabase = await createClient()
-
-  // 获取当前用户
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 使用统一的认证辅助函数获取用户（支持 Supabase 和 LeanCloud）
+  const user = await getServerUser()
 
   if (!user) {
     redirect('/')
   }
 
-  // 获取用户角色
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  // 使用统一的认证辅助函数获取 profile
+  const profile = await getServerProfile()
 
   const userRole: UserRole = (profile?.role as UserRole) || 'user'
 
-  const { data: stores, error } = await getStores()
+  const { data: stores, error } = await getActiveStores()
 
   if (error) {
     return (

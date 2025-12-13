@@ -1,27 +1,19 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { StoreSettingsContent } from '@/components/store-settings-content'
-import { getStores } from '@/lib/api/stores'
+import { getStores } from '@/lib/backend/stores'
 import type { UserRole } from '@/lib/auth/permissions'
+import { getServerUser, getServerProfile } from '@/lib/auth/server'
 
 export default async function StoreSettingsPage() {
-  const supabase = await createClient()
-
-  // 获取当前用户
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 使用统一认证 API 获取当前用户
+  const user = await getServerUser()
 
   if (!user) {
     redirect('/')
   }
 
-  // 获取用户配置（包含角色）
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('company_id, role')
-    .eq('id', user.id)
-    .single()
+  // 使用统一认证 API 获取用户配置
+  const profile = await getServerProfile()
 
   if (!profile?.company_id) {
     return (
@@ -36,7 +28,7 @@ export default async function StoreSettingsPage() {
     )
   }
 
-  // 获取所有店铺
+  // 获取所有店铺（使用统一后端 API）
   const { data: stores, error } = await getStores()
 
   if (error) {

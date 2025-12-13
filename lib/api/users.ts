@@ -21,6 +21,40 @@ export interface CompanyUser {
   updated_at: string
 }
 
+// Supabase 查询结果类型
+type ProfileWithRole = {
+  company_id: string | null
+  role: UserRole
+}
+
+type ProfileWithCompany = {
+  company_id: string | null
+}
+
+type ProfileWithRoleAndCompany = {
+  company_id: string | null
+  role: UserRole
+}
+
+type ProfileListItem = {
+  id: string
+  full_name: string | null
+  role: UserRole
+  managed_store_ids: string[] | null
+  created_at: string
+  updated_at: string
+}
+
+type FullProfile = {
+  id: string
+  company_id: string | null
+  full_name: string | null
+  role: UserRole
+  managed_store_ids: string[] | null
+  created_at: string
+  updated_at: string
+}
+
 // ============================================
 // 获取公司用户列表
 // ============================================
@@ -44,7 +78,7 @@ export async function getCompanyUsers(): Promise<{
     .from('profiles')
     .select('company_id, role')
     .eq('id', user.id)
-    .single()
+    .single() as { data: ProfileWithRole | null; error: any }
 
   if (!currentProfile?.company_id) {
     return { data: [], error: '用户未关联公司' }
@@ -67,7 +101,7 @@ export async function getCompanyUsers(): Promise<{
       updated_at
     `)
     .eq('company_id', currentProfile.company_id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: true }) as { data: ProfileListItem[] | null; error: any }
 
   if (error) {
     return { data: [], error: '获取用户列表失败' }
@@ -156,7 +190,7 @@ export async function updateUserRole(
     .from('profiles')
     .select('company_id, role')
     .eq('id', user.id)
-    .single()
+    .single() as { data: ProfileWithRole | null; error: any }
 
   if (currentProfile?.role !== 'owner') {
     return { error: '只有老板可以修改用户角色' }
@@ -177,7 +211,7 @@ export async function updateUserRole(
     .from('profiles')
     .select('company_id')
     .eq('id', userId)
-    .single()
+    .single() as { data: ProfileWithCompany | null; error: any }
 
   if (targetProfile?.company_id !== currentProfile?.company_id) {
     return { error: '无权限修改此用户' }
@@ -250,7 +284,7 @@ export async function updateUserStores(
     .from('profiles')
     .select('company_id, role')
     .eq('id', user.id)
-    .single()
+    .single() as { data: ProfileWithRole | null; error: any }
 
   if (currentProfile?.role !== 'owner') {
     return { error: '只有老板可以修改用户权限' }
@@ -261,7 +295,7 @@ export async function updateUserStores(
     .from('profiles')
     .select('company_id, role')
     .eq('id', userId)
-    .single()
+    .single() as { data: ProfileWithRoleAndCompany | null; error: any }
 
   if (targetProfile?.company_id !== currentProfile?.company_id) {
     return { error: '无权限修改此用户' }
@@ -323,7 +357,7 @@ export async function removeUser(userId: string): Promise<{ error: string | null
     .from('profiles')
     .select('company_id, role')
     .eq('id', user.id)
-    .single()
+    .single() as { data: ProfileWithRole | null; error: any }
 
   if (currentProfile?.role !== 'owner') {
     return { error: '只有老板可以移除用户' }
@@ -339,7 +373,7 @@ export async function removeUser(userId: string): Promise<{ error: string | null
     .from('profiles')
     .select('company_id, role')
     .eq('id', userId)
-    .single()
+    .single() as { data: ProfileWithRoleAndCompany | null; error: any }
 
   if (targetProfile?.company_id !== currentProfile?.company_id) {
     return { error: '无权限移除此用户' }
@@ -402,7 +436,7 @@ export async function getCurrentUserProfile(): Promise<{
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .single() as { data: FullProfile | null; error: any }
 
   if (error || !profile) {
     return { data: null, error: '获取用户信息失败' }
@@ -412,6 +446,7 @@ export async function getCurrentUserProfile(): Promise<{
     data: {
       id: profile.id,
       email: user.email || '',
+      username: null,
       full_name: profile.full_name,
       role: profile.role as UserRole,
       managed_store_ids: profile.managed_store_ids || [],

@@ -17,13 +17,32 @@ import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { startVoiceRecognition, type ParsedTransaction } from '@/lib/utils/voice-parser'
 import { startTencentASR } from '@/lib/utils/tencent-asr'
-import { createTransaction } from '@/lib/api/transactions'
+import { createTransaction } from '@/lib/backend/transactions'
 import { useRouter } from 'next/navigation'
 import { getToday } from '@/lib/utils/date'
-import { getCategoryMapping, activityNames } from '@/lib/cash-flow-config'
-import type { TransactionCategory } from '@/lib/api/transaction-categories'
-import type { Store } from '@/lib/api/stores'
+import { activityNames } from '@/lib/cash-flow-config'
+import type { TransactionCategory } from '@/lib/backend/categories'
+import type { Store } from '@/lib/backend/stores'
 import { StoreSelector } from '@/components/store-selector'
+
+// 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
+function getCategoryActivity(category: TransactionCategory | any): 'operating' | 'investing' | 'financing' {
+  const activity = category.cash_flow_activity || category.cashFlowActivity || 'operating'
+  return activity as 'operating' | 'investing' | 'financing'
+}
+
+// 辅助函数：获取分类的交易性质（兼容 snake_case 和 camelCase）
+function getCategoryNature(category: TransactionCategory | any): 'operating' | 'non_operating' | 'income_tax' {
+  const nature = category.transaction_nature || category.transactionNature || 'operating'
+  return nature as 'operating' | 'non_operating' | 'income_tax'
+}
+
+// 交易性质名称映射
+const natureNames: Record<string, string> = {
+  operating: '营业内',
+  non_operating: '营业外',
+  income_tax: '所得税',
+}
 
 type ValidationError = {
   field: string
@@ -103,15 +122,30 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
     }
   }, [manualType, incomeCategories, expenseCategories])
 
+  // 获取当前选中店铺的期初余额日期
+  // 优先使用店铺的 initialBalanceDate，如果没有则使用传入的 initialBalanceDate（公司级别）
+  // 注意：LeanCloud 使用 initialBalanceDate（camelCase），Supabase 使用 initial_balance_date（snake_case）
+  const currentInitialBalanceDate = useMemo(() => {
+    if (selectedStoreId) {
+      const selectedStore = stores.find(s => s.id === selectedStoreId)
+      // 同时兼容 camelCase 和 snake_case
+      const storeInitialDate = (selectedStore as any)?.initialBalanceDate || (selectedStore as any)?.initial_balance_date
+      if (storeInitialDate) {
+        return storeInitialDate
+      }
+    }
+    return initialBalanceDate
+  }, [selectedStoreId, stores, initialBalanceDate])
+
   // 验证交易记录
   const validateTransaction = (transaction: ParsedTransaction): ValidationError[] => {
     const errors: ValidationError[] = []
 
     // 1. 验证日期不能早于期初余额日期
-    if (initialBalanceDate && transaction.date < initialBalanceDate) {
+    if (currentInitialBalanceDate && transaction.date < currentInitialBalanceDate) {
       errors.push({
         field: 'date',
-        message: `交易日期（${transaction.date}）早于期初余额日期（${initialBalanceDate}）`
+        message: `交易日期（${transaction.date}）早于期初余额日期（${currentInitialBalanceDate}）`
       })
     }
 
@@ -197,8 +231,8 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: voiceText,
-            incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
-            expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
+            incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c), nature: getCategoryNature(c) })),
+            expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c), nature: getCategoryNature(c) })),
           }),
         })
 
@@ -260,7 +294,7 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
           const categories = updatedTransaction.type === 'income' ? incomeCategories : expenseCategories
           const categoryInfo = categories.find(cat => cat.name === updatedTransaction.category)
           if (categoryInfo) {
-            updatedTransaction.cash_flow_activity = categoryInfo.cash_flow_activity
+            updatedTransaction.cash_flow_activity = getCategoryActivity(categoryInfo)
           }
         }
 
@@ -306,8 +340,8 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 text: voiceText,
-                incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
-                expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
+                incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c), nature: getCategoryNature(c) })),
+                expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c), nature: getCategoryNature(c) })),
               }),
             })
 
@@ -367,8 +401,8 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: manualTextInput,
-          incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
-          expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: c.cash_flow_activity })),
+          incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
+          expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
         }),
       })
 
@@ -410,7 +444,7 @@ export function VoiceEntryInterface({ incomeCategories, expenseCategories, initi
     // 根据分类获取对应的活动类型
     const categories = manualType === 'income' ? incomeCategories : expenseCategories
     const categoryInfo = categories.find(cat => cat.name === manualCategory)
-    const cashFlowActivity = categoryInfo?.cash_flow_activity || 'operating'
+    const cashFlowActivity = categoryInfo ? getCategoryActivity(categoryInfo) : 'operating'
 
     const newTransaction: TransactionWithId = {
       id: `${Date.now()}_${Math.random()}`,
@@ -1057,8 +1091,14 @@ function TransactionCard({
     )
   }
 
-  // 获取活动类型 - 优先使用交易记录中的字段，如果没有则使用分类映射
-  const activity = transaction.cash_flow_activity || getCategoryMapping(transaction.type, transaction.category)?.activity || 'operating'
+  // 获取活动类型 - 优先使用交易记录中的字段，如果没有则从分类数据库查找
+  const allCategories = [...incomeCategories, ...expenseCategories]
+  const categoryData = allCategories.find(c => c.name === transaction.category && c.type === transaction.type)
+  const activity: 'operating' | 'investing' | 'financing' = transaction.cash_flow_activity || getCategoryActivity(categoryData) || 'operating'
+  // 获取交易性质 - 优先使用交易记录中的字段，如果没有则从分类数据库查找
+  const nature = (transaction as any).transaction_nature || getCategoryNature(categoryData) || 'operating'
+  // 获取是否计入利润表（兼容 snake_case 和 camelCase）
+  const includeInProfitLoss = categoryData?.include_in_profit_loss ?? (categoryData as any)?.includeInProfitLoss ?? true
 
   // 检查是否有验证错误
   const hasErrors = transaction.validationErrors && transaction.validationErrors.length > 0
@@ -1100,9 +1140,28 @@ function TransactionCard({
             >
               置信度: {getConfidenceText(transaction.confidence)}
             </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              activity === 'operating' ? 'bg-blue-50 text-blue-700' :
+              activity === 'investing' ? 'bg-amber-50 text-amber-700' :
+              activity === 'financing' ? 'bg-indigo-50 text-indigo-700' :
+              'bg-gray-50 text-gray-700'
+            }`}>
               {activityNames[activity]}
             </span>
+            {includeInProfitLoss === false ? (
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                不适用
+              </span>
+            ) : (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                nature === 'operating' ? 'bg-emerald-50 text-emerald-700' :
+                nature === 'non_operating' ? 'bg-orange-50 text-orange-700' :
+                nature === 'income_tax' ? 'bg-purple-50 text-purple-700' :
+                'bg-gray-50 text-gray-700'
+              }`}>
+                {natureNames[nature] || nature}
+              </span>
+            )}
           </div>
           <p className="text-sm text-foreground mb-1">{transaction.description}</p>
           <p className="text-lg font-semibold text-foreground">¥{transaction.amount.toFixed(2)}</p>

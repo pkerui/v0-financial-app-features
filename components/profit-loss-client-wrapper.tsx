@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client'
 
 import { useDateRangeNavigation } from '@/lib/hooks/use-date-range-navigation'

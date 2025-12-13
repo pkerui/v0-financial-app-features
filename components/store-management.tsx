@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Store, createStore, updateStore, deleteStore } from '@/lib/api/stores'
+import { Store, createStore, updateStore, deleteStore } from '@/lib/backend/stores'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

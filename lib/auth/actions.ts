@@ -6,8 +6,9 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { usernameToEmail } from './username'
 
-// 登录表单验证模式
+// 登录表单验证模式（包含公司码）
 const loginSchema = z.object({
+  companyCode: z.string().length(6, '公司码必须是6位'),
   username: z.string().min(1, '请输入用户名'),
   password: z.string().min(6, '密码至少6位'),
 })
@@ -24,6 +25,9 @@ const registerOwnerSchema = z.object({
 export type FormState = {
   error?: string
   success?: string
+  redirectTo?: string  // 用于客户端重定向
+  companyCode?: string // 注册成功后的公司码
+  username?: string    // 注册成功后的用户名
 }
 
 // ============================================
@@ -70,6 +74,8 @@ export async function registerOwner(prevState: FormState, formData: FormData): P
   const companyName = formData.get('companyName') as string
   const recoveryEmail = formData.get('email') as string || ''
   const redirectTo = formData.get('redirectTo') as string || '/stores'
+  // 获取客户端生成的公司码
+  const clientCompanyCode = (formData.get('companyCode') as string)?.toUpperCase()
 
   // 验证输入
   const validation = registerOwnerSchema.safeParse({
@@ -83,130 +89,118 @@ export async function registerOwner(prevState: FormState, formData: FormData): P
     return { error: validation.error.errors[0].message }
   }
 
-  // 再次检查是否已有用户（防止并发注册）
-  const hasUsers = await checkSystemHasUsers()
-  if (hasUsers) {
-    return { error: '系统已有管理员账户，请直接登录' }
+  // 使用统一后端适配器进行注册
+  const { registerOwner: backendRegisterOwner, signIn, signOut, checkSystemHasUsers: backendCheckUsers } = await import('@/lib/backend/auth')
+
+  // 检查是否已有用户（防止并发注册）
+  // 注意：LeanCloud 模式下允许多个公司注册，所以跳过此检查
+  const { detectBackend } = await import('@/lib/backend/detector')
+  const backend = detectBackend()
+
+  if (backend === 'supabase') {
+    const hasUsers = await backendCheckUsers()
+    if (hasUsers) {
+      return { error: '系统已有管理员账户，请直接登录' }
+    }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return { error: '系统配置错误，请联系技术支持' }
+  // 清除旧的登录状态，防止注册后 session 冲突
+  try {
+    await signOut()
+  } catch (e) {
+    // 忽略登出错误（可能本来就没登录）
+    console.log('清除旧 session:', e)
   }
 
-  const adminClient = createAdminClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
-  // 将用户名转换为内部邮箱格式
-  const internalEmail = usernameToEmail(username)
-
-  // 1. 创建用户（触发器会自动创建基本 profile）
-  const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-    email: internalEmail,
+  // 调用统一后端适配器进行注册（传递客户端生成的公司码）
+  const result = await backendRegisterOwner({
+    username,
     password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: fullName,
-      username: username.toLowerCase(),
-      recovery_email: recoveryEmail || null,
-    },
+    fullName,
+    companyName,
+    email: recoveryEmail || undefined,
+    companyCode: clientCompanyCode
   })
 
-  if (createError || !newUser.user) {
-    console.error('创建用户失败:', createError)
-    return { error: '创建用户失败: ' + (createError?.message || '未知错误') }
+  if (result.error) {
+    return { error: result.error }
   }
 
-  // 2. 创建公司
-  const { data: company, error: companyError } = await adminClient
-    .from('companies')
-    .insert({ name: companyName })
-    .select()
-    .single()
+  // 获取公司码（使用客户端传入的或后端返回的）
+  const companyCode = clientCompanyCode || (result as any).companyCode
 
-  if (companyError || !company) {
-    console.error('创建公司失败:', companyError)
-    await adminClient.auth.admin.deleteUser(newUser.user.id)
-    return { error: '创建公司失败' }
+  // 如果有公司码（LeanCloud 模式），返回成功状态让客户端显示弹窗
+  if (companyCode && backend === 'leancloud') {
+    // 尝试自动登录
+    try {
+      await signIn(username, password, companyCode)
+    } catch (e) {
+      console.error('自动登录失败:', e)
+    }
+    // 返回成功状态，让客户端显示弹窗
+    return {
+      success: '注册成功',
+      companyCode,
+      username
+    }
   }
 
-  // 3. 更新 profile（设置公司和 owner 角色）
-  const { error: profileError } = await adminClient
-    .from('profiles')
-    .update({
-      company_id: company.id,
-      role: 'owner',
-      full_name: fullName,
-      managed_store_ids: [],
-    })
-    .eq('id', newUser.user.id)
+  // Supabase 模式：尝试自动登录
+  const { session, error: loginError } = await signIn(username, password)
 
-  if (profileError) {
-    console.error('更新 profile 失败:', profileError)
-    await adminClient.auth.admin.deleteUser(newUser.user.id)
-    await adminClient.from('companies').delete().eq('id', company.id)
-    return { error: '设置用户信息失败' }
-  }
-
-  // 4. 使用普通客户端登录
-  const supabase = await createClient()
-  const { error: loginError } = await supabase.auth.signInWithPassword({
-    email: internalEmail,
-    password,
-  })
-
-  if (loginError) {
+  if (loginError || !session) {
     return { error: '注册成功，但自动登录失败，请手动登录' }
   }
 
-  // 首次注册跳转到店铺管理，让用户先创建店铺
-  redirect(redirectTo)
+  // Supabase 模式直接返回重定向到店铺管理
+  return { redirectTo }
 }
 
 /**
- * 用户登录
+ * 用户登录（支持公司码）
  */
 export async function login(prevState: FormState, formData: FormData): Promise<FormState> {
+  const companyCode = (formData.get('companyCode') as string)?.toUpperCase()
   const username = formData.get('username') as string
   const password = formData.get('password') as string
   const redirectTo = formData.get('redirectTo') as string || '/stores'
 
   // 验证输入
-  const validation = loginSchema.safeParse({ username, password })
+  const validation = loginSchema.safeParse({ companyCode, username, password })
   if (!validation.success) {
     return { error: validation.error.errors[0].message }
   }
 
-  const supabase = await createClient()
+  // 使用统一后端适配器登录
+  const { signIn } = await import('@/lib/backend/auth')
+  const { session, error } = await signIn(username, password, companyCode)
 
-  // 将用户名转换为内部邮箱格式
-  const email = usernameToEmail(username)
-
-  // 尝试登录
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    return { error: '用户名或密码错误' }
+  if (error || !session) {
+    return { error: error || '公司码、用户名或密码错误' }
   }
 
-  redirect(redirectTo)
+  // 返回重定向地址，让客户端处理跳转
+  // 这样确保 cookies 在跳转前被浏览器正确处理
+  return { success: '登录成功', redirectTo }
 }
 
 /**
  * 用户登出
  */
 export async function logout() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  const { detectBackend } = await import('@/lib/backend/detector')
+  const backend = detectBackend()
+
+  if (backend === 'leancloud') {
+    // LeanCloud 模式：使用统一后端适配器
+    const { signOut } = await import('@/lib/backend/auth')
+    await signOut()
+  } else {
+    // Supabase 模式
+    const supabase = await createClient()
+    await supabase.auth.signOut()
+  }
+
   redirect('/')
 }
 

@@ -1,23 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
 import { MobileHomePage } from '@/components/mobile/pages/home-page'
-import { getTransactions } from '@/lib/api/transactions'
-import { getStores, Store } from '@/lib/api/stores'
+import { getTransactions } from '@/lib/backend/transactions'
+import { getStores, type Store } from '@/lib/backend/stores'
+import { getCurrentProfile } from '@/lib/backend/auth'
 import { getToday } from '@/lib/utils/date'
 
 export default async function MobileHome() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // 获取用户信息
+  const profile = await getCurrentProfile()
 
-  if (!user) {
+  if (!profile) {
     return null
   }
-
-  // 获取用户信息
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single()
 
   // 获取店铺列表
   const storesResult = await getStores()
@@ -26,8 +19,8 @@ export default async function MobileHome() {
   // 获取今日交易统计
   const today = getToday()
   const result = await getTransactions({
-    start_date: today,
-    end_date: today,
+    startDate: today,
+    endDate: today,
   })
   const todayTransactions = (result as { data?: Array<{ type: string; amount: number }> }).data || []
 
@@ -45,7 +38,7 @@ export default async function MobileHome() {
 
   return (
     <MobileHomePage
-      userName={(profile as { full_name?: string } | null)?.full_name || '用户'}
+      userName={profile.full_name || '用户'}
       storeName={storeName}
       todayIncome={todayIncome}
       todayExpense={todayExpense}

@@ -1,5 +1,34 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getLCSessionFromRequest, LC_SESSION_COOKIE } from '@/lib/leancloud/cookies'
+
+// 检测后端类型（在 middleware 中使用）
+function detectBackendInMiddleware(): 'supabase' | 'leancloud' {
+  const envBackend = process.env.NEXT_PUBLIC_BACKEND?.toLowerCase()
+  if (envBackend === 'leancloud') {
+    return 'leancloud'
+  }
+  if (envBackend === 'supabase') {
+    return 'supabase'
+  }
+
+  // 检查 LeanCloud 是否配置
+  const lcAppId = process.env.NEXT_PUBLIC_LEANCLOUD_APP_ID
+  const lcAppKey = process.env.NEXT_PUBLIC_LEANCLOUD_APP_KEY
+  const lcServerURL = process.env.NEXT_PUBLIC_LEANCLOUD_SERVER_URL
+  const isLeanCloudConfigured = !!(lcAppId && lcAppKey && lcServerURL)
+
+  // 检查 Supabase 是否配置
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
+
+  if (isLeanCloudConfigured && !isSupabaseConfigured) {
+    return 'leancloud'
+  }
+
+  return 'supabase'
+}
 
 // 检测是否为移动设备
 function isMobileDevice(userAgent: string): boolean {
@@ -45,31 +74,43 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+  const backend = detectBackendInMiddleware()
+  let user: { id: string } | null = null
 
-  // 刷新会话（如果过期）
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 根据后端类型检查用户认证状态
+  if (backend === 'leancloud') {
+    // LeanCloud 模式：从 Cookie 中获取会话
+    const lcSession = getLCSessionFromRequest(request)
+    if (lcSession) {
+      user = { id: lcSession.userId }
+    }
+  } else {
+    // Supabase 模式：使用 Supabase SSR 客户端
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            response = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            )
+          },
+        },
+      }
+    )
+
+    // 刷新会话（如果过期）
+    const { data } = await supabase.auth.getUser()
+    user = data?.user || null
+  }
 
   const pathname = request.nextUrl.pathname
   const userAgent = request.headers.get('user-agent') || ''
@@ -117,9 +158,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 如果已登录用户访问首页或登录页，重定向到 dashboard
+  // 如果已登录用户访问首页或登录页，重定向到店铺管理页面
   if ((pathname === '/' || pathname === '/login') && user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/stores', request.url))
   }
 
   return response

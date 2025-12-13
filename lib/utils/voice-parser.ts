@@ -11,6 +11,7 @@ export type ParsedTransaction = {
   date: string // YYYY-MM-DD format
   confidence: 'high' | 'medium' | 'low'
   cash_flow_activity?: 'operating' | 'investing' | 'financing'
+  transaction_nature?: 'operating' | 'non_operating' | 'income_tax'
 }
 
 // 收入关键词

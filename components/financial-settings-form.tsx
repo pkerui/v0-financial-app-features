@@ -9,8 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { AlertCircle, Save, Store } from 'lucide-react'
 import { toast } from 'sonner'
-import { saveFinancialSettings, type FinancialSettings } from '@/lib/api/financial-settings'
-import { updateStore } from '@/lib/api/stores'
+import { saveFinancialSettings, type FinancialSettings } from '@/lib/backend/financial-settings'
+import { updateStore } from '@/lib/backend/stores'
 import { getToday } from '@/lib/utils/date'
 
 type FinancialSettingsFormProps = {

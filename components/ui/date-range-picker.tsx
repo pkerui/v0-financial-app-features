@@ -14,7 +14,7 @@ export type DateRangePickerProps = {
   endDate: string
   onDateChange: (startDate: string, endDate: string) => void
   minDate?: string // 最小日期限制（例如期初余额日期）
-  maxDate?: string // 最大日期限制（默认今天）
+  maxDate?: string // 最大日期限制（不设默认值，允许选择未来日期）
   className?: string
   buttonSize?: 'default' | 'sm' | 'lg'
   align?: 'start' | 'center' | 'end'
@@ -29,7 +29,9 @@ export type DateRangePickerProps = {
  * 3. 日期验证：
  *    - 起始日期 >= minDate (期初余额日期)
  *    - 起始日期 <= 结束日期
- *    - 结束日期 <= maxDate (默认今天)
+ *    - 结束日期 <= maxDate (如果设置了的话，默认不限制)
+ *
+ * 注意：默认允许选择未来日期，以便查询预录入的交易
  *
  * 使用示例：
  * ```tsx
@@ -49,7 +51,7 @@ export function DateRangePicker({
   endDate,
   onDateChange,
   minDate,
-  maxDate = getToday(),
+  maxDate, // 不设默认值，允许选择未来日期
   className = '',
   buttonSize = 'sm',
   align = 'end',
@@ -104,11 +106,14 @@ export function DateRangePicker({
     onDateChange(start, end)
   }
 
-  // 快捷日期设置：全部
+  // 快捷日期设置：全部（包含未来日期）
   const setToAllTime = () => {
     // 使用期初日期或默认很早的日期
     const start = minDate || '2000-01-01'
-    const end = getToday()
+    // 结束日期使用一年后，以便包含未来的预录入交易
+    const today = new Date()
+    const oneYearLater = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
+    const end = oneYearLater.toISOString().split('T')[0]
 
     setLocalStartDate(start)
     setLocalEndDate(end)
@@ -190,6 +195,8 @@ export function DateRangePicker({
               type="date"
               className="h-8 mt-1"
               value={localStartDate}
+              min={minDate}
+              max={localEndDate}
               onChange={(e) => handleStartDateChange(e.target.value)}
               onBlur={handleStartDateBlur}
             />
@@ -202,6 +209,8 @@ export function DateRangePicker({
               type="date"
               className="h-8 mt-1"
               value={localEndDate}
+              min={localStartDate}
+              max={maxDate}
               onChange={(e) => handleEndDateChange(e.target.value)}
               onBlur={handleEndDateBlur}
             />

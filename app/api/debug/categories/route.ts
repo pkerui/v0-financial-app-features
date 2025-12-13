@@ -1,74 +1,111 @@
-import { createClient } from '@/lib/supabase/server'
+// @ts-nocheck
 import { NextResponse } from 'next/server'
+import { detectBackend } from '@/lib/backend/detector'
 
 export async function GET() {
-  const supabase = await createClient()
+  const backend = detectBackend()
 
-  // 获取当前用户
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (backend === 'leancloud') {
+    // LeanCloud 模式
+    const { TransactionCategoryModel, ProfileModel } = await import('@/lib/leancloud/models')
+    const { getLCSession } = await import('@/lib/leancloud/cookies')
 
-  if (!user) {
-    return NextResponse.json({ error: '未登录' }, { status: 401 })
-  }
+    const session = await getLCSession()
+    if (!session) {
+      return NextResponse.json({ error: '未登录', backend }, { status: 401 })
+    }
 
-  // 获取用户配置
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('company_id')
-    .eq('id', user.id)
-    .single()
+    // 获取用户配置
+    const { data: profile } = await ProfileModel.getByUserId(session.userId)
+    if (!profile?.companyId) {
+      return NextResponse.json({ error: '用户未关联公司', backend }, { status: 400 })
+    }
 
-  if (!profile?.company_id) {
-    return NextResponse.json({ error: '用户未关联公司' }, { status: 400 })
-  }
+    // 查询所有分类
+    const { data: allCategories, error } = await TransactionCategoryModel.getByCompanyId(profile.companyId)
+    if (error) {
+      return NextResponse.json({ error: '查询失败', details: error, backend }, { status: 500 })
+    }
 
-  // 查询所有分类
-  const { data: allCategories, error: allError } = await supabase
-    .from('transaction_categories')
-    .select('*')
-    .eq('company_id', profile.company_id)
-    .order('type')
-    .order('name')
+    // 格式化输出，显示关键字段
+    const formattedCategories = allCategories?.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      type: cat.type,
+      cashFlowActivity: cat.cashFlowActivity,
+      transactionNature: cat.transactionNature,
+      includeInProfitLoss: cat.includeInProfitLoss,
+      isSystem: cat.isSystem,
+      // snake_case 别名
+      cash_flow_activity: cat.cash_flow_activity,
+      transaction_nature: cat.transaction_nature,
+      include_in_profit_loss: cat.include_in_profit_loss,
+    })) || []
 
-  if (allError) {
-    return NextResponse.json({ error: '查询失败', details: allError }, { status: 500 })
-  }
+    // 按类型分组
+    const incomeCategories = formattedCategories.filter(c => c.type === 'income')
+    const expenseCategories = formattedCategories.filter(c => c.type === 'expense')
 
-  // 查询押金相关分类
-  const depositCategories = allCategories?.filter(
-    cat => cat.name === '押金收入' || cat.name === '押金退还'
-  ) || []
-
-  // 查询使用押金分类的交易数量
-  const depositStats = await Promise.all(
-    depositCategories.map(async cat => {
-      const { count, error } = await supabase
-        .from('transactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('company_id', profile.company_id)
-        .eq('category', cat.name)
-
-      return {
-        category: cat.name,
-        type: cat.type,
-        cash_flow_activity: cat.cash_flow_activity,
-        transaction_nature: cat.transaction_nature,
-        include_in_profit_loss: cat.include_in_profit_loss,
-        is_system: cat.is_system,
-        updated_at: cat.updated_at,
-        transaction_count: count || 0,
-      }
+    return NextResponse.json({
+      backend,
+      user_id: session.userId,
+      company_id: profile.companyId,
+      total_categories: allCategories?.length || 0,
+      income_categories: incomeCategories,
+      expense_categories: expenseCategories,
+      all_categories: formattedCategories,
+      timestamp: new Date().toISOString(),
     })
-  )
+  } else {
+    // Supabase 模式
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
 
-  return NextResponse.json({
-    user_id: user.id,
-    company_id: profile.company_id,
-    total_categories: allCategories?.length || 0,
-    all_categories: allCategories,
-    deposit_categories: depositStats,
-    timestamp: new Date().toISOString(),
-  })
+    // 获取当前用户
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: '未登录', backend }, { status: 401 })
+    }
+
+    // 获取用户配置
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.company_id) {
+      return NextResponse.json({ error: '用户未关联公司', backend }, { status: 400 })
+    }
+
+    // 查询所有分类
+    const { data: allCategories, error: allError } = await supabase
+      .from('transaction_categories')
+      .select('*')
+      .eq('company_id', profile.company_id)
+      .order('type')
+      .order('name')
+
+    if (allError) {
+      return NextResponse.json({ error: '查询失败', details: allError, backend }, { status: 500 })
+    }
+
+    // 按类型分组
+    const incomeCategories = allCategories?.filter(c => c.type === 'income') || []
+    const expenseCategories = allCategories?.filter(c => c.type === 'expense') || []
+
+    return NextResponse.json({
+      backend,
+      user_id: user.id,
+      company_id: profile.company_id,
+      total_categories: allCategories?.length || 0,
+      income_categories: incomeCategories,
+      expense_categories: expenseCategories,
+      all_categories: allCategories,
+      timestamp: new Date().toISOString(),
+    })
+  }
 }

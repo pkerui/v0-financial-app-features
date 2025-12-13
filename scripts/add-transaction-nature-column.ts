@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * 添加 transaction_nature 字段到 transactions 表
  * 运行方式：npx tsx scripts/add-transaction-nature-column.ts

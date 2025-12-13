@@ -422,8 +422,21 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
                       </p>
                     </div>
                   </div>
-                  <div className="text-sm text-foreground border-t pt-2">
-                    期初余额: {formatAmount(metrics?.beginningBalance || 0)}
+                  <div className="text-sm text-foreground border-t pt-2 space-y-1">
+                    <div>
+                      期初余额: {formatAmount(metrics?.beginningBalance || 0)}
+                      {metrics?.existingStoreCount !== undefined && metrics.existingStoreCount > 0 && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          （仅含 {startDate} 前已开业的 {metrics.existingStoreCount} 家店铺：{metrics.existingStoreNames?.join('、')}）
+                        </span>
+                      )}
+                      {metrics?.existingStoreCount === 0 && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          （{startDate} 前无已开业店铺）
+                        </span>
+                      )}
+                    </div>
+                    <div>期初日期: {startDate}</div>
                   </div>
                   <Link href={`/cash-flow?startDate=${startDate}&endDate=${endDate}&stores=all`}>
                     <Button variant="outline" className="w-full gap-2">
@@ -476,9 +489,6 @@ export function StoreHub({ stores, initialStartDate, initialEndDate, metrics, st
                         {formatAmount(-(metrics?.incomeTax || 0), 0)}
                       </p>
                     </div>
-                  </div>
-                  <div className="text-sm text-foreground border-t pt-2">
-                    营业收入: {formatAmount(metrics?.revenue || 0, 0)} · 营业成本: {formatAmount(-(metrics?.cost || 0), 0)}
                   </div>
                   <Link href={`/profit-loss?startDate=${startDate}&endDate=${endDate}&stores=all`}>
                     <Button variant="outline" className="w-full gap-2">

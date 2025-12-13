@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { MobileLayout, MobileContainer, MobileCard } from '../mobile-layout'
 import { Store as StoreIcon, ChevronDown, Check, Loader2, Pencil, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { deleteTransaction, updateTransaction } from '@/lib/api/transactions'
+import { deleteTransaction, updateTransaction } from '@/lib/backend/transactions'
 import { useRouter } from 'next/navigation'
-import type { Store } from '@/lib/api/stores'
+import type { Store } from '@/lib/backend/stores'
 
 interface Transaction {
   id: string
@@ -34,6 +34,16 @@ interface MobileTransactionsPageProps {
   categories: Category[]
   userRole: string
   managedStoreIds: string[]
+}
+
+// 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
+function getCategoryActivity(category: Category | any): string {
+  return category.cash_flow_activity || category.cashFlowActivity || 'operating'
+}
+
+// 辅助函数：获取分类的交易性质（兼容 snake_case 和 camelCase）
+function getCategoryNature(category: Category | any): string {
+  return category.transaction_nature || category.transactionNature || 'operating'
 }
 
 export function MobileTransactionsPage({
@@ -143,15 +153,11 @@ export function MobileTransactionsPage({
     setIsSaving(true)
     setError('')
     try {
-      // 获取分类对应的 cash_flow_activity
-      const selectedCategory = categories.find(c => c.name === editingTransaction.category)
-
       const result = await updateTransaction(editingTransaction.id, {
         amount: editingTransaction.amount,
         description: editingTransaction.description,
         category: editingTransaction.category,
         date: editingTransaction.date,
-        cash_flow_activity: selectedCategory?.cash_flow_activity || editingTransaction.cash_flow_activity,
       })
 
       if (result.error) {
@@ -394,8 +400,8 @@ export function MobileTransactionsPage({
                               setEditingTransaction({
                                 ...editingTransaction,
                                 category: newCategory,
-                                cash_flow_activity: selectedCat?.cash_flow_activity || editingTransaction.cash_flow_activity,
-                                transaction_nature: selectedCat?.transaction_nature || editingTransaction.transaction_nature,
+                                cash_flow_activity: selectedCat ? getCategoryActivity(selectedCat) : editingTransaction.cash_flow_activity,
+                                transaction_nature: selectedCat ? getCategoryNature(selectedCat) : editingTransaction.transaction_nature,
                               })
                             }}
                             className="w-full mt-1 px-3 py-2 border rounded-md bg-background"

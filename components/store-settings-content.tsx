@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Store } from '@/lib/api/stores'
+import { Store } from '@/lib/backend/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/tabs'
 import { ArrowLeft, Plus, Edit, Trash2, Store as StoreIcon, MapPin, User, Phone, Calendar, Wallet, Users, LogOut, Key } from 'lucide-react'
 import Link from 'next/link'
-import { createStore, updateStore, deleteStore } from '@/lib/api/stores'
+import { createStore, updateStore, deleteStore } from '@/lib/backend/stores'
 import { logout } from '@/lib/auth/actions'
 import { useRouter } from 'next/navigation'
 import { UserManagement } from '@/components/user-management'
@@ -497,7 +497,7 @@ export function StoreSettingsContent({ stores: initialStores, currentUserId, cur
                 <Label htmlFor="edit-name">店铺名称 *</Label>
                 <Input
                   id="edit-name"
-                  value={editingStore.name}
+                  value={editingStore.name || ''}
                   onChange={(e) => setEditingStore({ ...editingStore, name: e.target.value })}
                 />
               </div>

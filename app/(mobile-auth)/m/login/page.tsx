@@ -1,6 +1,6 @@
 import { MobileLoginForm } from '@/components/mobile/pages/login-page'
 import { MobileRegisterOwnerForm } from '@/components/mobile/pages/register-owner-page'
-import { checkSystemHasUsers } from '@/lib/auth/actions'
+import { checkSystemHasUsers } from '@/lib/backend/auth'
 
 // 强制动态渲染（每次请求都检查用户状态）
 export const dynamic = 'force-dynamic'

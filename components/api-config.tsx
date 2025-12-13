@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Key, Eye, EyeOff, CheckCircle, XCircle, ExternalLink, Info, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
-import { getApiConfig, updateApiConfig, type ApiConfigDisplay } from '@/lib/api/api-config'
+import { getApiConfig, updateApiConfig, type ApiConfigDisplay } from '@/lib/backend/api-config'
 
 export function ApiConfig() {
   const [config, setConfig] = useState<ApiConfigDisplay | null>(null)

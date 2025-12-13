@@ -1,5 +1,19 @@
 # Claude Code Configuration
 
+## 🚨 CRITICAL - READ FIRST (每次回复前必须检查)
+
+**每次回复前必须检查：**
+1. 这是新功能还是 bug 修复？
+2. 涉及的文件是否在"受保护区域"？
+3. 是否需要先提出方案等待批准？
+
+**违反以下任何一条都是错误：**
+- ❌ 未经确认直接修改受保护文件
+- ❌ 未提供技术方案就开始编码
+- ❌ 假设数据库结构而不先查询验证
+
+---
+
 ## 🔴 First Rule: Always Confirm
 
 **Never code without approval.** Ask "Should I proceed?" → Wait for "yes" → Then implement. No exceptions.

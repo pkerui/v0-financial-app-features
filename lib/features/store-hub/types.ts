@@ -33,6 +33,10 @@ export interface StoreHubMetrics {
   beginningBalance: number    // 期初余额
   endingBalance: number       // 期末余额
 
+  // 期初余额说明信息（仅含期初日期前已开业的店铺）
+  existingStoreCount: number        // 已存在店铺数量
+  existingStoreNames: string[]      // 已存在店铺名称列表
+
   // 利润表数据（与利润表详情页保持一致）
   revenue: number             // 营业收入
   cost: number                // 营业成本
