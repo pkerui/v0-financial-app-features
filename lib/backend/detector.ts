@@ -10,8 +10,8 @@ export type BackendType = 'supabase' | 'leancloud'
  *
  * 规则：
  * 1. 环境变量 NEXT_PUBLIC_BACKEND 可以强制指定后端
- * 2. 如果配置了 LeanCloud 且 Supabase 未配置，使用 LeanCloud
- * 3. 默认使用 Supabase
+ * 2. 如果 Supabase 配置完整，使用 Supabase
+ * 3. 否则默认使用 LeanCloud（因为 LeanCloud 有内置默认配置）
  */
 export function detectBackend(): BackendType {
   // 1. 检查环境变量是否强制指定
@@ -23,24 +23,18 @@ export function detectBackend(): BackendType {
     return 'supabase'
   }
 
-  // 2. 检查 LeanCloud 是否配置
-  const lcAppId = process.env.NEXT_PUBLIC_LEANCLOUD_APP_ID
-  const lcAppKey = process.env.NEXT_PUBLIC_LEANCLOUD_APP_KEY
-  const lcServerURL = process.env.NEXT_PUBLIC_LEANCLOUD_SERVER_URL
-  const isLeanCloudConfigured = !!(lcAppId && lcAppKey && lcServerURL)
-
-  // 3. 检查 Supabase 是否配置
+  // 2. 检查 Supabase 是否配置完整
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
-  // 4. 如果只配置了 LeanCloud，使用 LeanCloud
-  if (isLeanCloudConfigured && !isSupabaseConfigured) {
-    return 'leancloud'
+  // 3. 如果 Supabase 配置完整，使用 Supabase
+  if (isSupabaseConfigured) {
+    return 'supabase'
   }
 
-  // 5. 默认使用 Supabase
-  return 'supabase'
+  // 4. 否则默认使用 LeanCloud（LeanCloud 在 init.ts 中有硬编码默认配置）
+  return 'leancloud'
 }
 
 /**
