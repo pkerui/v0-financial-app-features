@@ -1,0 +1,22 @@
+# 依赖
+node_modules
+
+# 构建产物
+.next
+out
+dist
+dist-electron
+
+# 开发文件
+.git
+.gitignore
+*.md
+.env*
+.vscode
+
+# 系统文件
+.DS_Store
+*.log
+
+# Electron 相关
+electron
