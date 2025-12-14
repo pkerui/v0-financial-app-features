@@ -26,6 +26,14 @@ export function getFirstDayOfYear(): string {
 }
 
 /**
+ * 获取本年最后一天（本地时区）
+ */
+export function getLastDayOfYear(): string {
+  const today = new Date()
+  return formatDateToLocal(new Date(today.getFullYear(), 11, 31))
+}
+
+/**
  * 获取今天（本地时区）
  */
 export function getToday(): string {

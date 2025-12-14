@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { getCurrentUserApiKeys } from '@/lib/api/api-config'
+import { getCurrentUserApiKeys } from '@/lib/backend/api-config'
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +29,26 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     const audioBase64 = buffer.toString('base64')
 
+    // 根据文件类型确定音频格式
+    // 腾讯云 ASR 支持: wav, pcm, ogg-opus, speex, silk, mp3, m4a, aac
+    // 注意：腾讯云不直接支持 webm，但 webm+opus 可以尝试作为 ogg-opus
+    const fileType = audioFile.type || audioFile.name
+    let voiceFormat = 'wav'
+    if (fileType.includes('mp4') || fileType.includes('m4a')) {
+      voiceFormat = 'm4a'
+    } else if (fileType.includes('webm')) {
+      // webm 包含 opus 编码时，尝试作为 ogg-opus 格式
+      // 腾讯云不直接支持 webm，但 opus 编码的音频可能兼容
+      voiceFormat = 'ogg-opus'
+    } else if (fileType.includes('ogg')) {
+      voiceFormat = 'ogg-opus'
+    } else if (fileType.includes('mp3')) {
+      voiceFormat = 'mp3'
+    } else if (fileType.includes('aac')) {
+      voiceFormat = 'aac'
+    }
+    console.log('音频文件类型:', fileType, '-> 使用格式:', voiceFormat)
+
     // 腾讯云 API 参数
     const endpoint = 'asr.tencentcloudapi.com'
     const service = 'asr'
@@ -44,7 +64,7 @@ export async function POST(request: NextRequest) {
       SubServiceType: 2,
       EngSerViceType: '16k_zh',
       SourceType: 1,
-      VoiceFormat: 'wav',
+      VoiceFormat: voiceFormat,
       UsrAudioKey: Date.now().toString(),
       Data: audioBase64,
       DataLen: buffer.length,

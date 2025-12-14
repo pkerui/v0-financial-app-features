@@ -7,6 +7,7 @@ export class TencentASR {
   private mediaRecorder: MediaRecorder | null = null
   private audioChunks: Blob[] = []
   private stream: MediaStream | null = null
+  private mimeType: string = 'audio/webm'
 
   /**
    * 开始录音
@@ -49,20 +50,26 @@ export class TencentASR {
       }
 
       // 检测支持的音频格式
-      let mimeType = 'audio/webm'
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4'
-        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
-          mimeType = 'audio/ogg'
-        } else {
-          // 使用默认格式
-          mimeType = ''
-        }
+      // 优先使用 mp4/m4a 格式，因为腾讯云 ASR 不支持 webm
+      // 腾讯云支持: wav, pcm, ogg-opus, speex, silk, mp3, m4a, aac
+      if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        this.mimeType = 'audio/mp4'
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        // webm with opus 可以作为 ogg-opus 发送
+        this.mimeType = 'audio/webm;codecs=opus'
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        this.mimeType = 'audio/ogg'
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        // 纯 webm 腾讯云不支持，但作为最后的备选
+        this.mimeType = 'audio/webm'
+      } else {
+        // 使用默认格式
+        this.mimeType = ''
       }
+      console.log('使用录音格式:', this.mimeType)
 
       // 创建 MediaRecorder
-      const options: MediaRecorderOptions = mimeType ? { mimeType } : {}
+      const options: MediaRecorderOptions = this.mimeType ? { mimeType: this.mimeType } : {}
       this.mediaRecorder = new MediaRecorder(this.stream, options)
 
       this.audioChunks = []
@@ -78,8 +85,8 @@ export class TencentASR {
       // 录音停止时处理
       this.mediaRecorder.onstop = async () => {
         console.log('录音停止，共收集', this.audioChunks.length, '个数据块')
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
-        console.log('合并后的音频 Blob 大小:', audioBlob.size, 'bytes')
+        const audioBlob = new Blob(this.audioChunks, { type: this.mimeType || 'audio/webm' })
+        console.log('合并后的音频 Blob 大小:', audioBlob.size, 'bytes, 格式:', this.mimeType)
         await this.recognizeAudio(audioBlob, onResult, onError)
       }
 
@@ -137,15 +144,26 @@ export class TencentASR {
         return
       }
 
-      console.log('音频数据大小:', audioBlob.size, 'bytes')
+      console.log('音频数据大小:', audioBlob.size, 'bytes, 格式:', this.mimeType)
 
-      // 将 webm 转换为 WAV 格式
-      const wavBlob = await this.convertToWav(audioBlob)
-      console.log('WAV 数据大小:', wavBlob.size, 'bytes')
+      // 腾讯云 ASR 需要 16kHz 采样率的音频
+      // 浏览器录制的 mp4/webm 格式可能编码不兼容，统一转换为 WAV 格式
+      // WAV 是最可靠的格式，转换过程中会自动调整采样率
+      let finalBlob: Blob
+      const fileName = 'audio.wav'
 
-      // 创建 FormData
+      console.log('正在将音频转换为 WAV 格式...')
+      try {
+        finalBlob = await this.convertToWav(audioBlob)
+        console.log('WAV 转换成功，大小:', finalBlob.size, 'bytes')
+      } catch (convertError) {
+        console.error('WAV 转换失败:', convertError)
+        onError('音频格式转换失败，请重试')
+        return
+      }
+
       const formData = new FormData()
-      formData.append('audio', wavBlob, 'audio.wav')
+      formData.append('audio', finalBlob, fileName)
 
       // 调用后端 API
       console.log('正在调用腾讯云 ASR API...')
@@ -220,25 +238,28 @@ export class TencentASR {
 
   /**
    * 将 AudioBuffer 转换为 WAV 格式
+   * 重新采样到 16kHz 以匹配腾讯云 ASR 要求
    */
   private audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
-    const numChannels = buffer.numberOfChannels
-    const sampleRate = buffer.sampleRate
+    const targetSampleRate = 16000 // 腾讯云 16k_zh 引擎需要 16kHz
+    const numChannels = 1 // 单声道
     const format = 1 // PCM
     const bitDepth = 16
 
     const bytesPerSample = bitDepth / 8
     const blockAlign = numChannels * bytesPerSample
 
-    const data = []
-    for (let i = 0; i < buffer.numberOfChannels; i++) {
-      data.push(buffer.getChannelData(i))
-    }
+    // 获取第一个声道的数据（转换为单声道）
+    const originalData = buffer.getChannelData(0)
 
-    const interleaved = this.interleave(data)
-    const dataLength = interleaved.length * bytesPerSample
+    // 重新采样到 16kHz
+    const resampledData = this.resample(originalData, buffer.sampleRate, targetSampleRate)
+    console.log(`重新采样: ${buffer.sampleRate}Hz -> ${targetSampleRate}Hz, 样本数: ${originalData.length} -> ${resampledData.length}`)
+
+    const dataLength = resampledData.length * bytesPerSample
     const headerLength = 44
     const totalLength = headerLength + dataLength
+    const sampleRate = targetSampleRate
 
     const arrayBuffer = new ArrayBuffer(totalLength)
     const view = new DataView(arrayBuffer)
@@ -259,24 +280,32 @@ export class TencentASR {
     view.setUint32(40, dataLength, true)
 
     // 写入音频数据
-    this.floatTo16BitPCM(view, headerLength, interleaved)
+    this.floatTo16BitPCM(view, headerLength, resampledData)
 
     return arrayBuffer
   }
 
   /**
-   * 交织多声道数据
+   * 重新采样音频数据
+   * 使用线性插值将音频从源采样率转换到目标采样率
    */
-  private interleave(channelData: Float32Array[]): Float32Array {
-    const length = channelData[0].length
-    const numberOfChannels = channelData.length
-    const result = new Float32Array(length * numberOfChannels)
+  private resample(data: Float32Array, fromSampleRate: number, toSampleRate: number): Float32Array {
+    if (fromSampleRate === toSampleRate) {
+      return data
+    }
 
-    let offset = 0
-    for (let i = 0; i < length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        result[offset++] = channelData[channel][i]
-      }
+    const ratio = fromSampleRate / toSampleRate
+    const newLength = Math.round(data.length / ratio)
+    const result = new Float32Array(newLength)
+
+    for (let i = 0; i < newLength; i++) {
+      const srcIndex = i * ratio
+      const srcIndexFloor = Math.floor(srcIndex)
+      const srcIndexCeil = Math.min(srcIndexFloor + 1, data.length - 1)
+      const fraction = srcIndex - srcIndexFloor
+
+      // 线性插值
+      result[i] = data[srcIndexFloor] * (1 - fraction) + data[srcIndexCeil] * fraction
     }
 
     return result

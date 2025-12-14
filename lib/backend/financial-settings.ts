@@ -1,4 +1,6 @@
 // @ts-nocheck
+'use server'
+
 /**
  * 统一财务设置适配器
  * 根据后端类型自动选择使用 Supabase 或 LeanCloud

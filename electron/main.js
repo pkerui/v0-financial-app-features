@@ -3,7 +3,7 @@
  * LeanCloud 云端模式 - 简化版 Electron 包装器
  */
 
-const { app, BrowserWindow, shell } = require('electron')
+const { app, BrowserWindow, shell, session } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
 
@@ -50,6 +50,13 @@ function startNextServer() {
         NEXT_PUBLIC_LEANCLOUD_APP_ID: process.env.NEXT_PUBLIC_LEANCLOUD_APP_ID || 'vJ1HlM4FiTSnu3K9skXu8vOf-gzGzoHsz',
         NEXT_PUBLIC_LEANCLOUD_APP_KEY: process.env.NEXT_PUBLIC_LEANCLOUD_APP_KEY || '9rkhfgrEqADpzLotXEqMPeBg',
         NEXT_PUBLIC_LEANCLOUD_SERVER_URL: process.env.NEXT_PUBLIC_LEANCLOUD_SERVER_URL || 'https://vj1hlm4f.lc-cn-n1-shared.com',
+        // Master Key 用于服务端管理操作（批量获取用户等）
+        LEANCLOUD_MASTER_KEY: process.env.LEANCLOUD_MASTER_KEY || 'Yf5lVnEMqKwxFiLRQTuoZvTo',
+        // 腾讯云语音识别 API 密钥
+        TENCENT_SECRET_ID: process.env.TENCENT_SECRET_ID || 'AKIDOdhYDfx4xe9TaZKWWJyQep09IUdbOzMW',
+        TENCENT_SECRET_KEY: process.env.TENCENT_SECRET_KEY || '0mKhrpZ6PUM0QcaKqAG8nHeomW5QYTAT',
+        // DeepSeek API 密钥（AI 分类等功能）
+        DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || 'sk-12b6c9e47de440c2a69f21aa46918f11',
       },
     })
 
@@ -116,12 +123,31 @@ function createWindow() {
 
   // 加载应用
   const url = `http://localhost:${PORT}`
+  console.log('Loading URL:', url)
+
+  // 添加加载错误处理
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Page failed to load:', errorCode, errorDescription)
+  })
+
+  // 添加控制台消息输出
+  mainWindow.webContents.on('console-message', (event, level, message) => {
+    console.log('Renderer:', message)
+  })
+
   mainWindow.loadURL(url)
 
   // 开发模式下打开开发者工具
   if (isDev) {
     mainWindow.webContents.openDevTools()
   }
+
+  // 生产模式下也可以用快捷键打开开发者工具调试
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow.webContents.toggleDevTools()
+    }
+  })
 
   // 处理外部链接
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -138,6 +164,27 @@ function createWindow() {
 // 应用启动
 app.whenReady().then(async () => {
   try {
+    // 设置权限处理器，自动允许麦克风访问
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      console.log('权限请求:', permission)
+      // 允许麦克风权限用于语音识别
+      if (permission === 'media' || permission === 'microphone') {
+        callback(true)
+        return
+      }
+      // 其他权限默认允许
+      callback(true)
+    })
+
+    // 设置权限检查处理器
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+      // 允许麦克风权限
+      if (permission === 'media' || permission === 'microphone') {
+        return true
+      }
+      return true
+    })
+
     await startNextServer()
     createWindow()
   } catch (error) {
@@ -147,8 +194,9 @@ app.whenReady().then(async () => {
 })
 
 // macOS: 点击 dock 图标时重新创建窗口
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+app.on('activate', async () => {
+  if (app.isReady() && BrowserWindow.getAllWindows().length === 0) {
+    await startNextServer()
     createWindow()
   }
 })

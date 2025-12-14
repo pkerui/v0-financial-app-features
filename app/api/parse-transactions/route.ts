@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUserApiKeys } from '@/lib/api/api-config'
+import { getCurrentUserApiKeys } from '@/lib/backend/api-config'
 
 export async function POST(request: NextRequest) {
   try {

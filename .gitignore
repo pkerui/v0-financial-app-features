@@ -33,6 +33,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cloudflare
+.wrangler/
+
+# cloudbase/webify
+.cloudbase/
+cloudbase-upload/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

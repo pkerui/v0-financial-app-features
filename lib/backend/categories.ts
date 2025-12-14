@@ -166,16 +166,17 @@ export async function addTransactionCategory(formData: CategoryFormData): Promis
         return { error: '该类型名称已存在' }
       }
 
-      // 添加分类 - 转换 snake_case 到 camelCase
+      // 添加分类 - 兼容 snake_case 和 camelCase
+      const fd = formData as any
       const result = await mod.TransactionCategoryModel.create({
         companyId: profile.companyId,
         name: formData.name,
         type: formData.type,
-        cashFlowActivity: formData.cash_flow_activity,
-        transactionNature: formData.transaction_nature as any, // leancloud types differ
-        includeInProfitLoss: formData.include_in_profit_loss ?? true,
+        cashFlowActivity: fd.cash_flow_activity || fd.cashFlowActivity || 'operating',
+        transactionNature: fd.transaction_nature || fd.transactionNature || 'operating',
+        includeInProfitLoss: fd.include_in_profit_loss ?? fd.includeInProfitLoss ?? true,
         isSystem: false,
-        sortOrder: formData.sort_order ?? 0,
+        sortOrder: fd.sort_order ?? fd.sortOrder ?? 0,
         createdBy: session.userId,
       })
 
@@ -242,12 +243,18 @@ export async function updateTransactionCategory(
       }
 
       // 级联更新交易记录 (category 是 LeanCloud 返回的 camelCase 数据)
+      // 兼容 snake_case 和 camelCase
+      const fd = formData as any
+      const cashFlowActivity = fd.cash_flow_activity || fd.cashFlowActivity
+      const transactionNature = fd.transaction_nature ?? fd.transactionNature
+      const includeInProfitLoss = fd.include_in_profit_loss ?? fd.includeInProfitLoss
+
       const lcCategory = category as any
       const shouldCascadeUpdate =
         (formData.name && formData.name !== lcCategory.name) ||
-        (formData.cash_flow_activity && formData.cash_flow_activity !== lcCategory.cashFlowActivity) ||
-        (formData.transaction_nature !== undefined && formData.transaction_nature !== lcCategory.transactionNature) ||
-        (formData.include_in_profit_loss !== undefined && formData.include_in_profit_loss !== lcCategory.includeInProfitLoss)
+        (cashFlowActivity && cashFlowActivity !== lcCategory.cashFlowActivity) ||
+        (transactionNature !== undefined && transactionNature !== lcCategory.transactionNature) ||
+        (includeInProfitLoss !== undefined && includeInProfitLoss !== lcCategory.includeInProfitLoss)
 
       if (shouldCascadeUpdate) {
         // 获取所有使用该分类的交易记录并更新
@@ -257,9 +264,9 @@ export async function updateTransactionCategory(
         for (const transaction of relatedTransactions) {
           const updates: any = {}
           if (formData.name) updates.category = formData.name
-          if (formData.cash_flow_activity) updates.cashFlowActivity = formData.cash_flow_activity
-          if (formData.transaction_nature !== undefined) updates.transactionNature = formData.transaction_nature
-          if (formData.include_in_profit_loss !== undefined) updates.includeInProfitLoss = formData.include_in_profit_loss
+          if (cashFlowActivity) updates.cashFlowActivity = cashFlowActivity
+          if (transactionNature !== undefined) updates.transactionNature = transactionNature
+          if (includeInProfitLoss !== undefined) updates.includeInProfitLoss = includeInProfitLoss
 
           if (transaction.id) {
             await mod.TransactionModel.update(transaction.id, updates)
@@ -267,14 +274,14 @@ export async function updateTransactionCategory(
         }
       }
 
-      // 更新分类 - 转换 snake_case 到 camelCase
+      // 更新分类 - 兼容 snake_case 和 camelCase
       const lcFormData: any = {}
       if (formData.name !== undefined) lcFormData.name = formData.name
       if (formData.type !== undefined) lcFormData.type = formData.type
-      if (formData.cash_flow_activity !== undefined) lcFormData.cashFlowActivity = formData.cash_flow_activity
-      if (formData.transaction_nature !== undefined) lcFormData.transactionNature = formData.transaction_nature
-      if (formData.include_in_profit_loss !== undefined) lcFormData.includeInProfitLoss = formData.include_in_profit_loss
-      if (formData.sort_order !== undefined) lcFormData.sortOrder = formData.sort_order
+      if (cashFlowActivity !== undefined) lcFormData.cashFlowActivity = cashFlowActivity
+      if (transactionNature !== undefined) lcFormData.transactionNature = transactionNature
+      if (includeInProfitLoss !== undefined) lcFormData.includeInProfitLoss = includeInProfitLoss
+      if (fd.sort_order !== undefined || fd.sortOrder !== undefined) lcFormData.sortOrder = fd.sort_order ?? fd.sortOrder
 
       const result = await mod.TransactionCategoryModel.update(id, lcFormData)
 

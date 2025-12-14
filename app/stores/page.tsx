@@ -22,7 +22,13 @@ export default async function StoresPage({ searchParams }: PageProps) {
   // 使用统一的认证辅助函数获取 profile
   const profile = await getServerProfile()
 
-  const userRole: UserRole = (profile?.role as UserRole) || 'user'
+  // 如果用户存在但 profile 不存在，说明 session 无效（用户可能被删除或 profile 丢失）
+  // 重定向到登出页面清除 session
+  if (!profile) {
+    redirect('/api/auth/logout?reason=invalid_session')
+  }
+
+  const userRole: UserRole = (profile.role as UserRole) || 'user'
 
   const { data: stores, error } = await getActiveStores()
 

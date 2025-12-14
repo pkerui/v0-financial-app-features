@@ -116,12 +116,13 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
   // 打开编辑对话框
   const handleEdit = async (category: TransactionCategory) => {
     setCurrentCategory(category)
+    const cat = category as any
     setFormData({
       name: category.name,
       type: category.type,
-      cashFlowActivity: category.cashFlowActivity,
-      transactionNature: category.transactionNature || 'operating',
-      includeInProfitLoss: category.includeInProfitLoss,
+      cashFlowActivity: cat.cash_flow_activity || cat.cashFlowActivity || 'operating',
+      transactionNature: cat.transaction_nature || cat.transactionNature || 'operating',
+      includeInProfitLoss: cat.include_in_profit_loss ?? cat.includeInProfitLoss ?? true,
     })
 
     // 查询该分类的使用次数
@@ -244,9 +245,9 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
   const renderCategoryList = (categories: TransactionCategory[], type: 'income' | 'expense') => {
     // 先按是否计入利润表分组，再按拼音排序
     const sortedCategories = [...categories].sort((a, b) => {
-      // 第一优先级：是否计入利润表（true 在前，false 在后）
-      const aInclude = a.includeInProfitLoss !== false ? 1 : 0
-      const bInclude = b.includeInProfitLoss !== false ? 1 : 0
+      // 第一优先级：是否计入利润表（true 在前，false 在后）兼容 snake_case 和 camelCase
+      const aInclude = ((a as any).include_in_profit_loss ?? (a as any).includeInProfitLoss) !== false ? 1 : 0
+      const bInclude = ((b as any).include_in_profit_loss ?? (b as any).includeInProfitLoss) !== false ? 1 : 0
       if (bInclude !== aInclude) {
         return bInclude - aInclude
       }
@@ -285,21 +286,21 @@ export function CategoryManagement({ incomeCategories, expenseCategories }: Cate
                 </div>
               </td>
               <td className="py-3 px-4">
-                <Badge className={activityColors[category.cashFlowActivity]} variant="secondary">
-                  {activityLabels[category.cashFlowActivity]}
+                <Badge className={activityColors[(category as any).cash_flow_activity || (category as any).cashFlowActivity || 'operating']} variant="secondary">
+                  {activityLabels[(category as any).cash_flow_activity || (category as any).cashFlowActivity || 'operating']}
                 </Badge>
               </td>
               <td className="py-3 px-4">
-                {category.includeInProfitLoss !== false ? (
-                  <Badge className={natureColors[category.transactionNature || 'operating']} variant="secondary">
-                    {natureLabels[category.transactionNature || 'operating']}
+                {((category as any).include_in_profit_loss ?? (category as any).includeInProfitLoss) !== false ? (
+                  <Badge className={natureColors[(category as any).transaction_nature || (category as any).transactionNature || 'operating']} variant="secondary">
+                    {natureLabels[(category as any).transaction_nature || (category as any).transactionNature || 'operating']}
                   </Badge>
                 ) : (
                   <span className="text-gray-400 dark:text-gray-600 text-sm">不适用</span>
                 )}
               </td>
               <td className="py-3 px-4 text-center">
-                {category.includeInProfitLoss !== false ? (
+                {((category as any).include_in_profit_loss ?? (category as any).includeInProfitLoss) !== false ? (
                   <span className="text-green-600 dark:text-green-400 text-lg">✓</span>
                 ) : (
                   <span className="text-gray-400 dark:text-gray-600">-</span>

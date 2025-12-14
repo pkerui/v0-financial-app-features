@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ChevronDown } from 'lucide-react'
-import { getFirstDayOfMonth, getFirstDayOfYear, getToday } from '@/lib/utils/date'
+import { getFirstDayOfMonth, getFirstDayOfYear, getLastDayOfYear, getToday } from '@/lib/utils/date'
 
 export type DateRangePickerProps = {
   startDate: string
@@ -91,10 +91,10 @@ export function DateRangePicker({
     onDateChange(start, end)
   }
 
-  // 快捷日期设置：本年
+  // 快捷日期设置：本年（整年，包括未来日期）
   const setToThisYear = () => {
     let start = getFirstDayOfYear()
-    const end = getToday()
+    const end = getLastDayOfYear() // 12月31日，支持录入未来日期的单据
 
     // 验证：如果本年第一天早于期初日期，使用期初日期
     if (minDate && start < minDate) {

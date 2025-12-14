@@ -26,13 +26,15 @@ import type { Store } from '@/lib/backend/stores'
 import { StoreSelector } from '@/components/store-selector'
 
 // 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
-function getCategoryActivity(category: TransactionCategory | any): 'operating' | 'investing' | 'financing' {
+function getCategoryActivity(category: TransactionCategory | any | undefined): 'operating' | 'investing' | 'financing' {
+  if (!category) return 'operating'
   const activity = category.cash_flow_activity || category.cashFlowActivity || 'operating'
   return activity as 'operating' | 'investing' | 'financing'
 }
 
 // 辅助函数：获取分类的交易性质（兼容 snake_case 和 camelCase）
-function getCategoryNature(category: TransactionCategory | any): 'operating' | 'non_operating' | 'income_tax' {
+function getCategoryNature(category: TransactionCategory | any | undefined): 'operating' | 'non_operating' | 'income_tax' {
+  if (!category) return 'operating'
   const nature = category.transaction_nature || category.transactionNature || 'operating'
   return nature as 'operating' | 'non_operating' | 'income_tax'
 }

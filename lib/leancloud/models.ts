@@ -380,18 +380,26 @@ export const ProfileModel = {
     }
   },
 
-  async getByUserId(userId: string): Promise<ApiResponse<Profile>> {
-    try {
-      const where = JSON.stringify({ userId })
-      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Profile}?where=${encodeURIComponent(where)}`, undefined, getToken())
-      if (!result.results || result.results.length === 0) {
-        return { data: null, error: '用户资料不存在' }
+  async getByUserId(userId: string, retries = 3): Promise<ApiResponse<Profile>> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const where = JSON.stringify({ userId })
+        const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Profile}?where=${encodeURIComponent(where)}`, undefined, getToken())
+        if (!result.results || result.results.length === 0) {
+          return { data: null, error: '用户资料不存在' }
+        }
+        return { data: formatProfile(result.results[0]), error: null }
+      } catch (error: any) {
+        console.error(`[LeanCloud] 获取用户资料失败 (尝试 ${attempt}/${retries}):`, error)
+        // 如果是超时错误且还有重试机会，等待后重试
+        if (attempt < retries && (error.code === 124 || error.message?.includes('timeout'))) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)) // 递增等待时间
+          continue
+        }
+        return { data: null, error: error.message || '获取用户资料失败' }
       }
-      return { data: formatProfile(result.results[0]), error: null }
-    } catch (error: any) {
-      console.error('[LeanCloud] 获取用户资料失败:', error)
-      return { data: null, error: error.message || '获取用户资料失败' }
     }
+    return { data: null, error: '获取用户资料失败：多次重试后仍然超时' }
   },
 
   async getByCompanyId(companyId: string): Promise<ApiListResponse<Profile>> {

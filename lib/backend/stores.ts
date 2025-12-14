@@ -349,6 +349,7 @@ export async function updateStore(
 
 /**
  * 删除店铺
+ * 注意：如果店铺有关联的交易记录，不允许删除
  */
 export async function deleteStore(id: string): Promise<{ success: boolean; error: string | null }> {
   const mod = await getStoresModule()
@@ -358,6 +359,14 @@ export async function deleteStore(id: string): Promise<{ success: boolean; error
       const session = await mod.getLCSession()
       if (!session) {
         return { success: false, error: '未授权访问' }
+      }
+
+      // 检查是否有关联的交易记录
+      const { TransactionModel } = await import('@/lib/leancloud/models')
+      const { data: transactions } = await TransactionModel.getByStoreId(id, { limit: 1 })
+
+      if (transactions && transactions.length > 0) {
+        return { success: false, error: '该店铺存在交易记录，无法删除。如需删除，请先删除或转移所有相关交易记录。' }
       }
 
       const result = await mod.StoreModel.delete(id)
