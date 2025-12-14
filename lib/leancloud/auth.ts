@@ -522,21 +522,19 @@ export async function getUsersByIds(userIds: string[]): Promise<{ users: AuthUse
 
 /**
  * 检查系统是否有用户
- * 查询 Profile 表判断（Profile 表公开可读，无需 Master Key）
+ * 直接查询 Profile 表（公开可读，无需 Master Key）
  */
 export async function checkSystemHasUsers(): Promise<boolean> {
   try {
-    // 直接查询 Profile 表，因为 _User 表需要 Master Key
-    const { ProfileModel } = await import('./models')
-    const { data: profiles, error } = await ProfileModel.getAll()
-
-    if (error) {
-      console.error('[LeanCloud Auth] 查询 Profile 失败:', error)
-      return true // 安全起见，假设有用户
-    }
-
-    return profiles && profiles.length > 0
+    // 直接用 REST API 查询 Profile 表，limit=1 只检查是否存在
+    const result = await lcRequest<{ results: any[] }>('GET', '/classes/Profile?limit=1')
+    return result.results && result.results.length > 0
   } catch (error: any) {
+    // 错误码 101 表示类不存在（首次使用，没有任何用户）
+    if (error.code === 101) {
+      console.log('[LeanCloud Auth] Profile 类不存在，系统首次使用')
+      return false
+    }
     console.error('[LeanCloud Auth] 检查用户数量失败:', error)
     return true // 安全起见，假设有用户
   }

@@ -43,9 +43,9 @@ function getDesktopToMobileRoute(pathname: string): string {
     '/stores': '/m',
     '/dashboard': '/m',
     '/transactions': '/m/transactions',
-    '/income': '/m/add?type=income',
-    '/expense': '/m/add?type=expense',
-    '/voice-entry': '/m/add',
+    '/income': '/m/record',
+    '/expense': '/m/record',
+    '/voice-entry': '/m/record',
     '/cash-flow': '/m/report',
     '/profit-loss': '/m/report',
     '/settings': '/m',
@@ -127,7 +127,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // 移动端保护路由（需要登录）
-    const mobileProtectedRoutes = ['/m/transactions', '/m/add', '/m/report']
+    const mobileProtectedRoutes = ['/m/transactions', '/m/record', '/m/report']
     const isMobileProtectedRoute = mobileProtectedRoutes.some((route) =>
       pathname.startsWith(route)
     ) || (pathname === '/m')
