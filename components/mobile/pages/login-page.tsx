@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
@@ -31,6 +31,14 @@ function SubmitButton() {
 export function MobileLoginForm() {
   const [state, formAction] = useActionState(login, {})
   const [companyCode, setCompanyCode] = useState('')
+
+  // 登录成功后跳转
+  useEffect(() => {
+    if (state.success && state.redirectTo) {
+      // 使用 window.location.href 确保 cookies 被正确处理
+      window.location.href = state.redirectTo
+    }
+  }, [state.success, state.redirectTo])
 
   return (
     <Card className="w-full max-w-md border-0 shadow-lg">
