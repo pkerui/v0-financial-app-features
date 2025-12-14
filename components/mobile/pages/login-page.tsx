@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { login } from '@/lib/auth/actions'
-import { Lock, User, AlertCircle } from 'lucide-react'
+import { Lock, User, AlertCircle, Building2 } from 'lucide-react'
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -29,6 +30,7 @@ function SubmitButton() {
  */
 export function MobileLoginForm() {
   const [state, formAction] = useActionState(login, {})
+  const [companyCode, setCompanyCode] = useState('')
 
   return (
     <Card className="w-full max-w-md border-0 shadow-lg">
@@ -61,6 +63,27 @@ export function MobileLoginForm() {
           )}
 
           <div className="space-y-2">
+            <Label htmlFor="companyCode" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              公司码
+            </Label>
+            <Input
+              id="companyCode"
+              name="companyCode"
+              type="text"
+              placeholder="6位公司码（如 ABC123）"
+              className="bg-input uppercase"
+              maxLength={6}
+              value={companyCode}
+              onChange={(e) => setCompanyCode(e.target.value.toUpperCase())}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              首次注册时系统生成的公司码
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="username" className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               用户名
@@ -81,12 +104,6 @@ export function MobileLoginForm() {
                 <Lock className="h-4 w-4 text-muted-foreground" />
                 密码
               </Label>
-              <Link
-                href="/m/forgot-password"
-                className="text-xs text-muted-foreground hover:text-primary transition-colors"
-              >
-                忘记密码？
-              </Link>
             </div>
             <Input
               id="password"
