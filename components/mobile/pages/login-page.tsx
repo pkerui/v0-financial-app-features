@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { login } from '@/lib/auth/actions'
 import { Lock, User, AlertCircle, Building2, Loader2 } from 'lucide-react'
 
 /**
@@ -24,24 +23,31 @@ export function MobileLoginForm() {
     setError('')
 
     try {
-      const formData = new FormData()
-      formData.append('companyCode', companyCode.trim().toUpperCase())
-      formData.append('username', username.trim())
-      formData.append('password', password)
-      formData.append('redirectTo', '/m')
+      // 使用 API Route 登录（确保 cookies 正确设置）
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyCode: companyCode.trim().toUpperCase(),
+          username: username.trim(),
+          password: password,
+        }),
+        credentials: 'include', // 确保 cookies 被包含
+      })
 
-      const result = await login({}, formData)
+      const result = await response.json()
 
-      if (result.error) {
-        setError(result.error)
+      if (!response.ok || result.error) {
+        setError(result.error || '登录失败')
         setLoading(false)
         return
       }
 
-      if (result.redirectTo) {
-        // 使用 window.location.href 确保 cookies 被正确处理
-        window.location.href = result.redirectTo
-      }
+      // 登录成功，跳转到移动端首页
+      // 使用 window.location.href 确保是完整页面刷新
+      window.location.href = '/m'
     } catch (err) {
       setError('登录失败，请重试')
       setLoading(false)

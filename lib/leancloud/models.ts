@@ -213,9 +213,14 @@ function formatTransactionCategory(obj: any): TransactionCategory {
 }
 
 /**
- * 获取会话 token（客户端使用）
+ * 获取会话 token
+ * 优先使用传入的 token，否则尝试从 localStorage 获取（客户端）
  */
-function getToken(): string | undefined {
+function getToken(providedToken?: string): string | undefined {
+  if (providedToken) {
+    return providedToken
+  }
+  // 客户端回退到 localStorage
   return getSessionToken() || undefined
 }
 
@@ -380,11 +385,11 @@ export const ProfileModel = {
     }
   },
 
-  async getByUserId(userId: string, retries = 3): Promise<ApiResponse<Profile>> {
+  async getByUserId(userId: string, retries = 3, sessionToken?: string): Promise<ApiResponse<Profile>> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         const where = JSON.stringify({ userId })
-        const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Profile}?where=${encodeURIComponent(where)}`, undefined, getToken())
+        const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Profile}?where=${encodeURIComponent(where)}`, undefined, getToken(sessionToken))
         if (!result.results || result.results.length === 0) {
           return { data: null, error: '用户资料不存在' }
         }
@@ -497,10 +502,10 @@ export const StoreModel = {
     }
   },
 
-  async getByCompanyId(companyId: string): Promise<ApiListResponse<Store>> {
+  async getByCompanyId(companyId: string, sessionToken?: string): Promise<ApiListResponse<Store>> {
     try {
       const where = JSON.stringify({ companyId })
-      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Store}?where=${encodeURIComponent(where)}&order=createdAt`, undefined, getToken())
+      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.Store}?where=${encodeURIComponent(where)}&order=createdAt`, undefined, getToken(sessionToken))
       return { data: result.results.map((obj) => formatStore(obj)), error: null }
     } catch (error: any) {
       // 错误码 101 表示类不存在（第一次使用时没有店铺数据）
@@ -514,10 +519,10 @@ export const StoreModel = {
     }
   },
 
-  async getById(id: string): Promise<ApiResponse<Store>> {
+  async getById(id: string, sessionToken?: string): Promise<ApiResponse<Store>> {
     try {
       console.log('[LeanCloud] StoreModel.getById 查询:', { id })
-      const result = await lcRequest<any>('GET', `/classes/${LC_CLASSES.Store}/${id}`, undefined, getToken())
+      const result = await lcRequest<any>('GET', `/classes/${LC_CLASSES.Store}/${id}`, undefined, getToken(sessionToken))
       console.log('[LeanCloud] StoreModel.getById 结果:', {
         objectId: result?.objectId,
         name: result?.name,
@@ -599,7 +604,7 @@ export const TransactionCategoryModel = {
     }
   },
 
-  async getByCompanyId(companyId: string, storeId?: string): Promise<ApiListResponse<TransactionCategory>> {
+  async getByCompanyId(companyId: string, storeId?: string, sessionToken?: string): Promise<ApiListResponse<TransactionCategory>> {
     try {
       let where: any
       if (storeId) {
@@ -615,7 +620,7 @@ export const TransactionCategoryModel = {
       } else {
         where = { companyId }
       }
-      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.TransactionCategory}?where=${encodeURIComponent(JSON.stringify(where))}&order=name`, undefined, getToken())
+      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.TransactionCategory}?where=${encodeURIComponent(JSON.stringify(where))}&order=name`, undefined, getToken(sessionToken))
       return { data: result.results.map((obj) => formatTransactionCategory(obj)), error: null }
     } catch (error: any) {
       console.error('[LeanCloud] 获取分类列表失败:', error)
@@ -737,7 +742,8 @@ export const TransactionModel = {
       type?: TransactionType
       limit?: number
       skip?: number
-    }
+    },
+    sessionToken?: string
   ): Promise<ApiListResponse<Transaction>> {
     try {
       const where: any = { storeId }
@@ -761,7 +767,7 @@ export const TransactionModel = {
         url += `&skip=${options.skip}`
       }
 
-      const result = await lcRequest<{ results: any[] }>('GET', url, undefined, getToken())
+      const result = await lcRequest<{ results: any[] }>('GET', url, undefined, getToken(sessionToken))
       return { data: result.results.map((obj) => formatTransaction(obj)), error: null }
     } catch (error: any) {
       console.error('[LeanCloud] 获取交易列表失败:', error)
@@ -783,7 +789,8 @@ export const TransactionModel = {
       type?: TransactionType
       limit?: number
       skip?: number
-    }
+    },
+    sessionToken?: string
   ): Promise<ApiListResponse<Transaction>> {
     try {
       const where: any = { companyId }
@@ -810,7 +817,7 @@ export const TransactionModel = {
         url += `&skip=${options.skip}`
       }
 
-      const result = await lcRequest<{ results: any[] }>('GET', url, undefined, getToken())
+      const result = await lcRequest<{ results: any[] }>('GET', url, undefined, getToken(sessionToken))
       return { data: result.results.map((obj) => formatTransaction(obj)), error: null }
     } catch (error: any) {
       console.error('[LeanCloud] 获取交易列表失败:', error)
@@ -955,10 +962,10 @@ export const FinancialSettingsModel = {
     }
   },
 
-  async getByCompanyId(companyId: string): Promise<ApiResponse<FinancialSettings>> {
+  async getByCompanyId(companyId: string, sessionToken?: string): Promise<ApiResponse<FinancialSettings>> {
     try {
       const where = JSON.stringify({ companyId })
-      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.FinancialSettings}?where=${encodeURIComponent(where)}&limit=1`, undefined, getToken())
+      const result = await lcRequest<{ results: any[] }>('GET', `/classes/${LC_CLASSES.FinancialSettings}?where=${encodeURIComponent(where)}&limit=1`, undefined, getToken(sessionToken))
       if (!result.results || result.results.length === 0) {
         // 返回 null 而不是错误，表示设置不存在但不是错误
         return { data: null, error: null }

@@ -124,14 +124,14 @@ export async function getStores(): Promise<{ data: Store[] | null; error: string
         return { data: null, error: '未授权访问' }
       }
 
-      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (profileError || !profile?.companyId) {
         console.error('获取用户资料失败:', profileError, 'userId:', session.userId)
         return { data: null, error: '无法获取用户信息' }
       }
 
-      const result = await mod.StoreModel.getByCompanyId(profile.companyId)
+      const result = await mod.StoreModel.getByCompanyId(profile.companyId, session.sessionToken)
       console.log('[getStores] Raw LeanCloud data:', JSON.stringify(result.data, null, 2))
 
       if (result.error) {
@@ -164,14 +164,14 @@ export async function getActiveStores(): Promise<{ data: Store[] | null; error: 
         return { data: null, error: '未授权访问' }
       }
 
-      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (profileError || !profile?.companyId) {
         console.error('获取用户资料失败:', profileError, 'userId:', session.userId)
         return { data: null, error: '无法获取用户信息' }
       }
 
-      const result = await mod.StoreModel.getByCompanyId(profile.companyId)
+      const result = await mod.StoreModel.getByCompanyId(profile.companyId, session.sessionToken)
 
       if (result.error) {
         return { data: null, error: `获取活跃店铺列表失败: ${result.error}` }
@@ -243,7 +243,7 @@ export async function createStore(
         return { data: null, error: '未授权访问' }
       }
 
-      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile, error: profileError } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
       console.log('[createStore] Profile:', profile ? { companyId: profile.companyId, role: profile.role } : null, 'error:', profileError)
 
       if (profileError || !profile?.companyId) {

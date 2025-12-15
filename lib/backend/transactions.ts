@@ -113,7 +113,7 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
       }
 
       // 获取用户的 profile (返回单个对象，不是数组)
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司，请联系管理员' }
@@ -128,7 +128,7 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
 
       // 1. 首先尝试从 Store 表获取期初日期
       if (storeId) {
-        const { data: store } = await mod.StoreModel.getById(storeId)
+        const { data: store } = await mod.StoreModel.getById(storeId, session.sessionToken)
         if (store?.initialBalanceDate) {
           initialBalanceDateStr = store.initialBalanceDate
           console.log('[createTransaction] 从 Store 表获取期初日期:', {
@@ -140,7 +140,7 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
 
       // 2. 如果 Store 没有期初日期，尝试从 FinancialSettings 获取（公司级别）
       if (!initialBalanceDateStr && profile.companyId) {
-        const { data: companySettings } = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId)
+        const { data: companySettings } = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId, session.sessionToken)
         if (companySettings?.initialBalanceDate) {
           initialBalanceDateStr = companySettings.initialBalanceDate
           console.log('[createTransaction] 从 FinancialSettings 获取公司级别期初日期:', {
@@ -235,7 +235,7 @@ export async function getTransactions(params?: TransactionQueryParams): Promise<
       }
 
       // 获取用户的 profile (返回单个对象，不是数组)
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司', data: [] }
@@ -250,7 +250,7 @@ export async function getTransactions(params?: TransactionQueryParams): Promise<
           type: params?.type,
           startDate: params?.startDate,
           endDate: params?.endDate,
-        })
+        }, session.sessionToken)
       } else {
         result = await mod.TransactionModel.getByCompanyId(profile.companyId, {
           limit: params?.limit,
@@ -258,7 +258,7 @@ export async function getTransactions(params?: TransactionQueryParams): Promise<
           type: params?.type,
           startDate: params?.startDate,
           endDate: params?.endDate,
-        })
+        }, session.sessionToken)
       }
 
       if (result.error) {
@@ -302,7 +302,7 @@ export async function updateTransaction(
       }
 
       // 获取用户的 profile
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
       }
@@ -310,7 +310,7 @@ export async function updateTransaction(
       // 如果更新了日期，需要验证日期
       if (data.date && data.store_id) {
         // 首先从 Store 表获取期初日期
-        const { data: store } = await mod.StoreModel.getById(data.store_id)
+        const { data: store } = await mod.StoreModel.getById(data.store_id, session.sessionToken)
         const initialBalanceDateStr = store?.initialBalanceDate
 
         if (initialBalanceDateStr) {
@@ -341,7 +341,7 @@ export async function updateTransaction(
       // 如果分类有变化，需要更新 cashFlowActivity 和 transactionNature
       // 注意：前端可能不传递 type 字段，所以只需要 category 存在就查找
       if (data.category) {
-        const { data: categories } = await mod.TransactionCategoryModel.getByCompanyId(profile.companyId)
+        const { data: categories } = await mod.TransactionCategoryModel.getByCompanyId(profile.companyId, undefined, session.sessionToken)
         // 如果有 type，精确匹配；否则只按名称匹配
         const category = data.type
           ? categories?.find((c: any) => c.type === data.type && c.name === data.category)

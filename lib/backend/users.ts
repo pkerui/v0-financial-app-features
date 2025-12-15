@@ -172,7 +172,7 @@ export async function updateUserRole(
       }
 
       // 验证目标用户是否属于同一公司
-      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId)
+      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId, 3, session.sessionToken)
 
       if (!targetProfile || targetProfile.companyId !== currentProfile.company_id) {
         return { error: '无权限修改此用户' }
@@ -235,7 +235,7 @@ export async function updateUserStores(
       }
 
       // 验证目标用户
-      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId)
+      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId, 3, session.sessionToken)
 
       if (!targetProfile || targetProfile.companyId !== currentProfile?.company_id) {
         return { error: '无权限修改此用户' }
@@ -295,7 +295,7 @@ export async function removeUser(userId: string): Promise<ActionResult> {
       }
 
       // 验证目标用户
-      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId)
+      const { data: targetProfile } = await mod.ProfileModel.getByUserId(userId, 3, session.sessionToken)
 
       if (!targetProfile || targetProfile.companyId !== currentProfile?.company_id) {
         return { error: '无权限移除此用户' }

@@ -72,11 +72,25 @@ export async function middleware(request: NextRequest) {
 
   const backend = detectBackendInMiddleware()
   let user: { id: string } | null = null
+  const pathname = request.nextUrl.pathname
 
   // 根据后端类型检查用户认证状态
   if (backend === 'leancloud') {
     // LeanCloud 模式：从 Cookie 中获取会话
     const lcSession = getLCSessionFromRequest(request)
+
+    // 调试日志 - 仅对关键路径打印
+    if (pathname === '/m' || pathname === '/m/login' || pathname.startsWith('/api/debug')) {
+      console.log('[Middleware] LeanCloud auth check:', {
+        pathname,
+        hasSession: !!lcSession,
+        userId: lcSession?.userId,
+        username: lcSession?.username,
+        cookieHeader: request.headers.get('cookie') ? 'present' : 'missing',
+        allCookies: request.cookies.getAll().map(c => c.name),
+      })
+    }
+
     if (lcSession) {
       user = { id: lcSession.userId }
     }
@@ -108,7 +122,6 @@ export async function middleware(request: NextRequest) {
     user = data?.user || null
   }
 
-  const pathname = request.nextUrl.pathname
   const userAgent = request.headers.get('user-agent') || ''
   const isMobile = isMobileDevice(userAgent)
 

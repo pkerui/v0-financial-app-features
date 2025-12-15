@@ -87,7 +87,7 @@ export async function getTransactionCategories(type?: CategoryType): Promise<Act
         return { error: '未登录', data: [] }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司', data: [] }
@@ -150,7 +150,7 @@ export async function addTransactionCategory(formData: CategoryFormData): Promis
         return { error: '未登录' }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
@@ -212,7 +212,7 @@ export async function updateTransactionCategory(
         return { error: '未登录' }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
@@ -321,7 +321,7 @@ export async function getCategoryUsageCount(categoryName: string): Promise<Actio
         return { error: '未登录' }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
@@ -355,7 +355,7 @@ export async function mergeTransactionCategories(sourceId: string, targetId: str
         return { error: '未登录' }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
@@ -426,7 +426,7 @@ export async function deleteTransactionCategory(id: string): Promise<ActionResul
         return { error: '未登录' }
       }
 
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }

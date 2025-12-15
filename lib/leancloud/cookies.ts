@@ -13,9 +13,13 @@ export const LC_USERNAME_COOKIE = 'lc_username'
 export const LC_COMPANY_CODE_COOKIE = 'lc_company_code'
 
 // Cookie 配置
+// 注意：CloudBase 内部可能是 HTTP，即使外部是 HTTPS
+// 所以 secure 不能简单地基于 NODE_ENV 判断
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  // 只有在明确配置 HTTPS 时才启用 secure
+  // CloudBase 等容器环境内部通常是 HTTP
+  secure: process.env.COOKIE_SECURE === 'true',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 24 * 7, // 7 天

@@ -76,13 +76,13 @@ export async function getFinancialSettings(): Promise<ActionResult<FinancialSett
       }
 
       // ProfileModel.getByUserId 返回单个对象，不是数组
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
       }
 
-      const result = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId)
+      const result = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId, session.sessionToken)
 
       if (result.error) {
         // 如果有错误，返回错误信息
@@ -130,14 +130,14 @@ export async function saveFinancialSettings(formData: FinancialSettingsFormData)
       }
 
       // ProfileModel.getByUserId 返回单个对象，不是数组
-      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId)
+      const { data: profile } = await mod.ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
       if (!profile?.companyId) {
         return { error: '用户未关联公司' }
       }
 
       // 检查是否已存在设置
-      const { data: existing } = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId)
+      const { data: existing } = await mod.FinancialSettingsModel.getByCompanyId(profile.companyId, session.sessionToken)
 
       // 转换 snake_case 到 camelCase
       const lcFormData = {

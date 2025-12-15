@@ -40,7 +40,7 @@ export async function GET() {
 
       // 使用 session token 获取 profile
       const { ProfileModel } = await import('@/lib/leancloud/models')
-      const profileResult = await ProfileModel.getByUserId(session.userId)
+      const profileResult = await ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
       debug.profileQuery = {
         hasData: !!profileResult.data,
         error: profileResult.error,
