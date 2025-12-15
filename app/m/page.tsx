@@ -31,10 +31,13 @@ export default function MobileHome() {
           return
         }
 
+        // 获取今天的日期
+        const today = new Date().toISOString().split('T')[0]
+
         // 获取店铺和交易数据
         const [storesRes, transactionsRes] = await Promise.all([
           fetch('/api/stores'),
-          fetch('/api/transactions?today=true'),
+          fetch(`/api/transactions?start_date=${today}&end_date=${today}`),
         ])
 
         const storesData = await storesRes.json().catch(() => ({ data: [] }))
