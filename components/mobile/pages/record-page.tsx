@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { MobileLayout, MobileContainer, MobileCard } from '../mobile-layout'
 import { Button } from '@/components/ui/button'
 import { Mic, MicOff, Keyboard, Send, Loader2, Check, X, Plus, Store as StoreIcon, ChevronDown, Pencil } from 'lucide-react'
@@ -25,6 +25,7 @@ interface MobileRecordPageProps {
   incomeCategories: TransactionCategory[]
   expenseCategories: TransactionCategory[]
   stores: Store[]
+  initialBalanceDate?: string
 }
 
 // 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
@@ -39,6 +40,7 @@ export function MobileRecordPage({
   incomeCategories,
   expenseCategories,
   stores,
+  initialBalanceDate,
 }: MobileRecordPageProps) {
   const router = useRouter()
   const [mode, setMode] = useState<'voice' | 'text'>('voice')
@@ -69,6 +71,20 @@ export function MobileRecordPage({
   }, [stores])
 
   const selectedStore = stores.find(s => s.id === selectedStoreId)
+
+  // 获取当前选中店铺的期初余额日期
+  // 优先使用店铺的 initialBalanceDate，如果没有则使用传入的 initialBalanceDate（公司级别）
+  const currentInitialBalanceDate = useMemo(() => {
+    if (selectedStoreId) {
+      const store = stores.find(s => s.id === selectedStoreId)
+      // 同时兼容 camelCase 和 snake_case
+      const storeInitialDate = (store as any)?.initialBalanceDate || (store as any)?.initial_balance_date
+      if (storeInitialDate) {
+        return storeInitialDate
+      }
+    }
+    return initialBalanceDate
+  }, [selectedStoreId, stores, initialBalanceDate])
 
   // 开始录音
   const handleStartRecording = () => {
@@ -518,8 +534,14 @@ export function MobileRecordPage({
                         type="date"
                         value={t.date}
                         onChange={(e) => handleUpdateTransaction(index, 'date', e.target.value)}
+                        min={currentInitialBalanceDate}
                         className="mt-1"
                       />
+                      {currentInitialBalanceDate && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          不能早于期初日期（{currentInitialBalanceDate}）
+                        </p>
+                      )}
                     </div>
 
                     {/* 完成编辑按钮 */}
