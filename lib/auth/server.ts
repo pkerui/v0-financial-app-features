@@ -79,14 +79,17 @@ export async function getServerUser(): Promise<ServerUser | null> {
 
 export async function getServerProfile(): Promise<ServerProfile | null> {
   const backend = detectBackend()
-  const user = await getServerUser()
-
-  if (!user) return null
 
   if (backend === 'leancloud') {
-    // LeanCloud 模式：从 LeanCloud 获取 profile
+    // LeanCloud 模式：从 Cookie 获取会话和 profile
+    const { getLCSession } = await import('@/lib/leancloud/cookies')
     const { ProfileModel } = await import('@/lib/leancloud/models')
-    const profileResult = await ProfileModel.getByUserId(user.id)
+
+    const session = await getLCSession()
+    if (!session) return null
+
+    // 传递 sessionToken 到 ProfileModel
+    const profileResult = await ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
 
     if (!profileResult.data) return null
 
@@ -99,28 +102,31 @@ export async function getServerProfile(): Promise<ServerProfile | null> {
       created_at: profileResult.data.createdAt,
       updated_at: profileResult.data.updatedAt,
     }
-  } else {
-    // Supabase 模式
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = await createClient()
+  }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+  // Supabase 模式
+  const user = await getServerUser()
+  if (!user) return null
 
-    if (!profile) return null
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
 
-    return {
-      id: profile.id,
-      company_id: profile.company_id,
-      full_name: profile.full_name,
-      role: profile.role as UserRole,
-      managed_store_ids: profile.managed_store_ids || [],
-      created_at: profile.created_at,
-      updated_at: profile.updated_at,
-    }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) return null
+
+  return {
+    id: profile.id,
+    company_id: profile.company_id,
+    full_name: profile.full_name,
+    role: profile.role as UserRole,
+    managed_store_ids: profile.managed_store_ids || [],
+    created_at: profile.created_at,
+    updated_at: profile.updated_at,
   }
 }
 
