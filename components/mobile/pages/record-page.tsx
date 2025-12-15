@@ -292,13 +292,13 @@ export function MobileRecordPage({
                       setShowStoreSelector(false)
                     }}
                     className={`w-full flex items-center gap-2 p-3 text-left hover:bg-muted transition-colors ${
-                      selectedStoreId === store.id ? 'bg-primary/10 text-primary' : ''
+                      selectedStoreId === store.id ? 'bg-blue-50 text-blue-700' : 'text-foreground'
                     }`}
                   >
                     <StoreIcon className="h-4 w-4" />
                     <span className="text-sm">{store.name}</span>
                     {selectedStoreId === store.id && (
-                      <Check className="h-4 w-4 ml-auto" />
+                      <Check className="h-4 w-4 ml-auto text-blue-700" />
                     )}
                   </button>
                 ))}
