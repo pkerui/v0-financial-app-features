@@ -324,6 +324,28 @@ export async function getCurrentUserId(): Promise<string | null> {
 // ============================================
 
 export async function getCurrentProfile(): Promise<Profile | null> {
+  // 优先使用服务端 Cookie session（Server Components）
+  const { getLCSession } = await import('@/lib/leancloud/cookies')
+  const session = await getLCSession()
+
+  if (session) {
+    // 服务端模式：从 Cookie 获取 session
+    const profileResult = await ProfileModel.getByUserId(session.userId, 3, session.sessionToken)
+
+    if (!profileResult.data) return null
+
+    return {
+      id: profileResult.data.id,
+      company_id: profileResult.data.companyId || null,
+      full_name: profileResult.data.fullName || null,
+      role: profileResult.data.role as UserRole,
+      managed_store_ids: profileResult.data.managedStoreIds || [],
+      created_at: profileResult.data.createdAt,
+      updated_at: profileResult.data.updatedAt,
+    }
+  }
+
+  // 回退到客户端模式（Client Components）
   const user = await lcGetCurrentUser()
 
   if (!user) return null
