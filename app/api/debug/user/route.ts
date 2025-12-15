@@ -6,17 +6,31 @@ export async function GET() {
     const backend = detectBackend()
 
     if (backend === 'leancloud') {
-      const { getCurrentProfile } = await import('@/lib/backend/auth')
-      const profile = await getCurrentProfile()
+      // 从 Cookie 获取 session
+      const { getLCSession } = await import('@/lib/leancloud/cookies')
+      const session = await getLCSession()
+
+      if (!session) {
+        return NextResponse.json({ backend, profile: null, debug: 'no session cookie' })
+      }
+
+      // 使用 session token 获取 profile
+      const { ProfileModel } = await import('@/lib/leancloud/models')
+      const profileResult = await ProfileModel.getByUserId(session.userId)
 
       return NextResponse.json({
         backend,
-        profile: profile ? {
-          id: profile.id,
-          company_id: profile.company_id,
-          full_name: profile.full_name,
-          role: profile.role,
+        profile: profileResult.data ? {
+          id: profileResult.data.id,
+          company_id: profileResult.data.companyId,
+          full_name: profileResult.data.fullName,
+          role: profileResult.data.role,
         } : null,
+        session: {
+          userId: session.userId,
+          username: session.username,
+          companyCode: session.companyCode,
+        },
       })
     } else {
       // Supabase 模式
