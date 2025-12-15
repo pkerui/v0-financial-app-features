@@ -95,7 +95,11 @@ export async function getCompanyUsers(): Promise<ActionResult<CompanyUser[]>> {
 
       // 批量获取用户信息（包含 username）
       const { getUsersByIds } = await import('@/lib/leancloud/auth')
-      const { users: lcUsers } = await getUsersByIds(userIds)
+      const { users: lcUsers, error: lcError } = await getUsersByIds(userIds)
+
+      if (lcError) {
+        console.error('[getCompanyUsers] 批量获取用户失败:', lcError, '- userIds:', userIds)
+      }
 
       // 创建 userId -> user 的映射
       const userMap = new Map(lcUsers.map(u => [u.id, u]))
