@@ -12,22 +12,18 @@ function detectBackendInMiddleware(): 'supabase' | 'leancloud' {
     return 'supabase'
   }
 
-  // 检查 LeanCloud 是否配置
-  const lcAppId = process.env.NEXT_PUBLIC_LEANCLOUD_APP_ID
-  const lcAppKey = process.env.NEXT_PUBLIC_LEANCLOUD_APP_KEY
-  const lcServerURL = process.env.NEXT_PUBLIC_LEANCLOUD_SERVER_URL
-  const isLeanCloudConfigured = !!(lcAppId && lcAppKey && lcServerURL)
-
-  // 检查 Supabase 是否配置
+  // 检查 Supabase 是否配置完整
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
-  if (isLeanCloudConfigured && !isSupabaseConfigured) {
-    return 'leancloud'
+  // 如果 Supabase 配置完整，使用 Supabase
+  if (isSupabaseConfigured) {
+    return 'supabase'
   }
 
-  return 'supabase'
+  // 否则默认使用 LeanCloud（LeanCloud 有内置默认配置）
+  return 'leancloud'
 }
 
 // 检测是否为移动设备
