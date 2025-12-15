@@ -98,6 +98,7 @@ function formatTransaction(obj: any): Transaction {
     id: obj.objectId,
     companyId: obj.companyId,
     storeId: obj.storeId,
+    store_id: obj.storeId, // snake_case 别名供报表页面使用
     cashFlowActivity: obj.cashFlowActivity,
     nature: obj.nature || null,  // 保持为 null，让页面从分类获取
     // 添加 snake_case 别名供 UI 组件使用
