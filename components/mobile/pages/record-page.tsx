@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { MobileLayout, MobileContainer, MobileCard } from '../mobile-layout'
 import { Button } from '@/components/ui/button'
-import { Mic, MicOff, Keyboard, Send, Loader2, Check, X, Plus, Store as StoreIcon, ChevronDown, Pencil } from 'lucide-react'
+import { Mic, MicOff, Keyboard, Send, Loader2, Check, X, Plus, Store as StoreIcon, ChevronDown, Pencil, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { startTencentASR } from '@/lib/utils/tencent-asr'
 import { createTransaction } from '@/lib/backend/transactions'
@@ -12,6 +12,11 @@ import { getToday } from '@/lib/utils/date'
 import type { TransactionCategory } from '@/lib/backend/categories'
 import type { Store } from '@/lib/backend/stores'
 
+interface ValidationError {
+  field: string
+  message: string
+}
+
 interface ParsedTransaction {
   type: 'income' | 'expense'
   category: string
@@ -19,6 +24,8 @@ interface ParsedTransaction {
   description: string
   date: string
   cash_flow_activity?: string
+  transaction_nature?: string
+  validationErrors?: ValidationError[]
 }
 
 interface MobileRecordPageProps {
@@ -31,6 +38,25 @@ interface MobileRecordPageProps {
 // 辅助函数：获取分类的现金流活动类型（兼容 snake_case 和 camelCase）
 function getCategoryActivity(category: TransactionCategory | any): string {
   return category.cash_flow_activity || category.cashFlowActivity || 'operating'
+}
+
+// 辅助函数：获取分类的交易性质（兼容 snake_case 和 camelCase）
+function getCategoryNature(category: TransactionCategory | any): string {
+  return category.transaction_nature || category.transactionNature || 'operating'
+}
+
+// 现金流活动类型名称映射
+const activityNames: Record<string, string> = {
+  operating: '经营活动',
+  investing: '投资活动',
+  financing: '筹资活动',
+}
+
+// 交易性质名称映射
+const natureNames: Record<string, string> = {
+  operating: '营业内',
+  non_operating: '营业外',
+  income_tax: '所得税',
 }
 
 /**
@@ -86,6 +112,40 @@ export function MobileRecordPage({
     return initialBalanceDate
   }, [selectedStoreId, stores, initialBalanceDate])
 
+  // 验证交易记录
+  const validateTransaction = (transaction: ParsedTransaction): ValidationError[] => {
+    const errors: ValidationError[] = []
+
+    // 1. 验证日期不能早于期初余额日期
+    if (currentInitialBalanceDate && transaction.date < currentInitialBalanceDate) {
+      errors.push({
+        field: 'date',
+        message: `交易日期（${transaction.date}）早于期初日期（${currentInitialBalanceDate}）`
+      })
+    }
+
+    // 2. 验证分类与类型匹配
+    const categories = transaction.type === 'income' ? incomeCategories : expenseCategories
+    const categoryInfo = categories.find(cat => cat.name === transaction.category)
+
+    if (!categoryInfo) {
+      errors.push({
+        field: 'category',
+        message: `找不到分类"${transaction.category}"`
+      })
+    }
+
+    // 3. 验证金额必须大于0
+    if (!transaction.amount || transaction.amount <= 0) {
+      errors.push({
+        field: 'amount',
+        message: '金额必须大于0'
+      })
+    }
+
+    return errors
+  }
+
   // 开始录音
   const handleStartRecording = () => {
     setError('')
@@ -134,8 +194,16 @@ export function MobileRecordPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          incomeCategories: incomeCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
-          expenseCategories: expenseCategories.map(c => ({ name: c.name, activity: getCategoryActivity(c) })),
+          incomeCategories: incomeCategories.map(c => ({
+            name: c.name,
+            activity: getCategoryActivity(c),
+            nature: getCategoryNature(c)
+          })),
+          expenseCategories: expenseCategories.map(c => ({
+            name: c.name,
+            activity: getCategoryActivity(c),
+            nature: getCategoryNature(c)
+          })),
         }),
       })
 
@@ -147,7 +215,19 @@ export function MobileRecordPage({
       }
 
       if (data.transactions && data.transactions.length > 0) {
-        setParsedTransactions(data.transactions)
+        // 为每个交易添加验证和交易性质
+        const transactionsWithValidation = data.transactions.map((t: ParsedTransaction) => {
+          const categories = t.type === 'income' ? incomeCategories : expenseCategories
+          const categoryInfo = categories.find(cat => cat.name === t.category)
+
+          return {
+            ...t,
+            cash_flow_activity: t.cash_flow_activity || (categoryInfo ? getCategoryActivity(categoryInfo) : 'operating'),
+            transaction_nature: (categoryInfo ? getCategoryNature(categoryInfo) : 'operating'),
+            validationErrors: validateTransaction(t),
+          }
+        })
+        setParsedTransactions(transactionsWithValidation)
       } else {
         setError('未能识别出交易记录，请重新输入')
       }
@@ -165,6 +245,16 @@ export function MobileRecordPage({
     // 验证店铺选择
     if (!selectedStoreId) {
       setError('请先选择店铺')
+      return
+    }
+
+    // 检查是否有验证错误
+    const transactionsWithErrors = parsedTransactions.filter(
+      t => t.validationErrors && t.validationErrors.length > 0
+    )
+
+    if (transactionsWithErrors.length > 0) {
+      setError(`有 ${transactionsWithErrors.length} 笔交易存在错误，请修正后再保存`)
       return
     }
 
@@ -222,31 +312,38 @@ export function MobileRecordPage({
     setParsedTransactions(prev => prev.map((t, i) => {
       if (i !== index) return t
 
+      let updatedTransaction = { ...t }
+
       // 如果更改类型，同时更新分类
       if (field === 'type') {
         const newType = value as 'income' | 'expense'
         const categories = newType === 'income' ? incomeCategories : expenseCategories
-        const defaultCategory = categories[0]?.name || ''
-        return {
-          ...t,
+        const defaultCategory = categories[0]
+        updatedTransaction = {
+          ...updatedTransaction,
           type: newType,
-          category: defaultCategory,
-          cash_flow_activity: categories[0] ? getCategoryActivity(categories[0]) : 'operating'
+          category: defaultCategory?.name || '',
+          cash_flow_activity: defaultCategory ? getCategoryActivity(defaultCategory) : 'operating',
+          transaction_nature: defaultCategory ? getCategoryNature(defaultCategory) : 'operating',
         }
-      }
-
-      // 如果更改分类，同时更新 cash_flow_activity
-      if (field === 'category') {
+      } else if (field === 'category') {
+        // 如果更改分类，同时更新 cash_flow_activity 和 transaction_nature
         const categories = t.type === 'income' ? incomeCategories : expenseCategories
         const selectedCat = categories.find(c => c.name === value)
-        return {
-          ...t,
+        updatedTransaction = {
+          ...updatedTransaction,
           category: value as string,
-          cash_flow_activity: selectedCat ? getCategoryActivity(selectedCat) : 'operating'
+          cash_flow_activity: selectedCat ? getCategoryActivity(selectedCat) : 'operating',
+          transaction_nature: selectedCat ? getCategoryNature(selectedCat) : 'operating',
         }
+      } else {
+        updatedTransaction = { ...updatedTransaction, [field]: value }
       }
 
-      return { ...t, [field]: value }
+      // 重新验证
+      updatedTransaction.validationErrors = validateTransaction(updatedTransaction)
+
+      return updatedTransaction
     }))
   }
 
@@ -567,6 +664,19 @@ export function MobileRecordPage({
                 ) : (
                   // 显示模式
                   <>
+                    {/* 验证错误提示 */}
+                    {t.validationErrors && t.validationErrors.length > 0 && (
+                      <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                          <div className="text-xs text-red-600">
+                            {t.validationErrors.map((err, errIdx) => (
+                              <p key={errIdx}>{err.message}</p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 flex gap-1">
                       <button
                         onClick={() => setEditingIndex(index)}
@@ -583,7 +693,7 @@ export function MobileRecordPage({
                     </div>
                     <div className="flex items-center justify-between pr-16">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-xs px-2 py-0.5 rounded ${
                             t.type === 'income'
                               ? 'bg-green-100 text-green-700'
@@ -592,7 +702,20 @@ export function MobileRecordPage({
                             {t.type === 'income' ? '收入' : '支出'}
                           </span>
                           <span className="font-medium">{t.category}</span>
+                          {/* 交易性质标签 */}
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            t.transaction_nature === 'operating' ? 'bg-emerald-50 text-emerald-700' :
+                            t.transaction_nature === 'non_operating' ? 'bg-orange-50 text-orange-700' :
+                            t.transaction_nature === 'income_tax' ? 'bg-purple-50 text-purple-700' :
+                            'bg-gray-50 text-gray-700'
+                          }`}>
+                            {natureNames[t.transaction_nature || 'operating'] || '营业内'}
+                          </span>
                         </div>
+                        {/* 现金流活动类型 */}
+                        <p className="text-xs text-blue-600 mt-1">
+                          {activityNames[t.cash_flow_activity || 'operating'] || '经营活动'}
+                        </p>
                         <p className="text-sm text-muted-foreground mt-1">{t.description}</p>
                         <p className="text-xs text-muted-foreground">{t.date}</p>
                       </div>
@@ -610,7 +733,7 @@ export function MobileRecordPage({
             {/* 保存按钮 */}
             <Button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || parsedTransactions.some(t => t.validationErrors && t.validationErrors.length > 0)}
               className="w-full h-12"
             >
               {isSaving ? (
