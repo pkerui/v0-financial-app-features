@@ -244,7 +244,11 @@ export function MobileRecordPage({
 
     // 验证店铺选择
     if (!selectedStoreId) {
-      setError('请先选择店铺')
+      if (stores.length === 0) {
+        setError('系统中还没有店铺，请先在桌面版创建店铺')
+      } else {
+        setError('请先选择店铺')
+      }
       return
     }
 
@@ -411,6 +415,23 @@ export function MobileRecordPage({
             <span className="text-sm text-muted-foreground">
               {stores[0].name}
             </span>
+          </div>
+        )}
+
+        {/* 无店铺提示 */}
+        {stores.length === 0 && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <p className="text-sm text-amber-800 font-medium">
+                  系统中还没有店铺
+                </p>
+                <p className="text-xs text-amber-700">
+                  请先在桌面版的「店铺管理」中创建店铺，才能开始记账。
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
