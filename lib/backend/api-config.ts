@@ -190,25 +190,36 @@ export async function updateApiConfig(config: {
 
 /**
  * 获取公司的 API 密钥（内部使用，用于 API 调用）
+ * 优先使用公司配置，如果没有则回退到环境变量
  */
 export async function getCompanyApiKeys(companyId: string): Promise<ApiConfig | null> {
   const mod = await getApiConfigModule()
+
+  // 环境变量作为默认回退
+  const envFallback: ApiConfig = {
+    deepseek_api_key: process.env.DEEPSEEK_API_KEY || null,
+    tencent_secret_id: process.env.TENCENT_SECRET_ID || null,
+    tencent_secret_key: process.env.TENCENT_SECRET_KEY || null,
+  }
 
   if (mod.backend === 'leancloud') {
     try {
       const { data: company, error } = await mod.CompanyModel.getById(companyId)
       if (error || !company) {
-        return null
+        // 公司不存在，使用环境变量
+        return envFallback
       }
 
+      // 优先使用公司配置，没有则用环境变量回退
       return {
-        deepseek_api_key: company.deepseekApiKey || null,
-        tencent_secret_id: company.tencentSecretId || null,
-        tencent_secret_key: company.tencentSecretKey || null,
+        deepseek_api_key: company.deepseekApiKey || envFallback.deepseek_api_key,
+        tencent_secret_id: company.tencentSecretId || envFallback.tencent_secret_id,
+        tencent_secret_key: company.tencentSecretKey || envFallback.tencent_secret_key,
       }
     } catch (error) {
       console.error('获取公司 API 密钥失败:', error)
-      return null
+      // 出错时使用环境变量
+      return envFallback
     }
   } else {
     const { getCompanyApiKeys: supabaseGet } = await import('@/lib/api/api-config')
