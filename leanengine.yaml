@@ -1,0 +1,19 @@
+# LeanCloud 云引擎配置
+# 文档: https://docs.leancloud.cn/sdk/engine/deploy/nodejs/
+
+runtime: nodejs20
+
+install:
+  - rm -f pnpm-lock.yaml
+  - npm install
+
+build: NEXT_PUBLIC_BACKEND=leancloud npm run build
+
+run: npm start
+
+envs:
+  NEXT_PUBLIC_BACKEND: leancloud
+
+resources:
+  limits:
+    memory: 512M

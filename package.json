@@ -1,12 +1,21 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
+  "name": "finance-manager",
+  "version": "1.0.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
+    "dev:desktop": "NEXT_BUILD_DIR=.next-desktop env $(grep -v '^#' .env.leancloud | grep -v '^$' | xargs) next dev -p 3001 -H 0.0.0.0",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "electron:dev": "NODE_ENV=development electron .",
+    "electron:build": "next build && electron-builder",
+    "electron:build:mac": "NEXT_PUBLIC_BACKEND=leancloud next build && electron-builder --mac && node scripts/post-build.js",
+    "electron:build:win": "NEXT_PUBLIC_BACKEND=leancloud next build && electron-builder --win",
+    "electron:build:linux": "NEXT_PUBLIC_BACKEND=leancloud next build && electron-builder --linux",
+    "webify:deploy": "NEXT_PUBLIC_BACKEND=leancloud tcb framework deploy",
+    "leancloud:deploy": "lean deploy --prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -41,12 +50,14 @@
     "@supabase/supabase-js": "^2.81.1",
     "@vercel/analytics": "latest",
     "autoprefixer": "^10.4.20",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
+    "leancloud-storage": "^4.15.2",
     "lucide-react": "^0.454.0",
     "next": "16.0.3",
     "next-themes": "latest",
@@ -65,12 +76,87 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.finance.manager",
+    "productName": "财务管理系统",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "app",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/static",
+        "to": "app/.next/static",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "public",
+        "to": "app/public",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "icon": "public/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "财务管理系统需要使用麦克风进行语音录入功能"
+      }
+    },
+    "win": {
+      "icon": "public/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "public/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office"
+    }
   }
 }
