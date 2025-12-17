@@ -5,7 +5,7 @@ runtime: nodejs
 
 install:
   - rm -f pnpm-lock.yaml
-  - npm install --legacy-peer-deps
+  - ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install --legacy-peer-deps
 
 build: NEXT_PUBLIC_BACKEND=leancloud npm run build
 
