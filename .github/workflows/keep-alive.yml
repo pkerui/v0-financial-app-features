@@ -1,0 +1,20 @@
+name: Keep CloudBase Alive
+
+on:
+  schedule:
+    # 每天 UTC 0:00 运行 (北京时间 8:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping CloudBase Service
+        run: |
+          echo "Pinging CloudBase service..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://finance-manager-208019-4-1387287689.sh.run.tcloudbase.com" || echo "000")
+          echo "HTTP Response: $HTTP_CODE"
+
+          # 即使服务暂停返回非200，也算成功触发
+          echo "Keep-alive ping completed at $(date)"
