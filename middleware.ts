@@ -1,5 +1,7 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+
+// 检测后端类型
+const isLeanCloud = process.env.NEXT_PUBLIC_BACKEND === 'leancloud'
 
 // 检测是否为移动设备
 function isMobileDevice(userAgent: string): boolean {
@@ -38,6 +40,12 @@ function getDesktopToMobileRoute(pathname: string): string {
   return '/m'
 }
 
+// 从 cookie 获取 LeanCloud 用户信息
+function getLeanCloudUser(request: NextRequest): boolean {
+  const sessionToken = request.cookies.get('lc_session')?.value
+  return !!sessionToken
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -45,31 +53,42 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+  let user: boolean = false
 
-  // 刷新会话（如果过期）
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (isLeanCloud) {
+    // LeanCloud 模式：从 cookie 检查登录状态
+    user = getLeanCloudUser(request)
+  } else {
+    // Supabase 模式
+    try {
+      const { createServerClient } = await import('@supabase/ssr')
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll()
+            },
+            setAll(cookiesToSet) {
+              cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+              response = NextResponse.next({
+                request,
+              })
+              cookiesToSet.forEach(({ name, value, options }) =>
+                response.cookies.set(name, value, options)
+              )
+            },
+          },
+        }
+      )
+      const { data } = await supabase.auth.getUser()
+      user = !!data.user
+    } catch {
+      // Supabase 初始化失败，跳过认证检查
+      user = false
+    }
+  }
 
   const pathname = request.nextUrl.pathname
   const userAgent = request.headers.get('user-agent') || ''
@@ -96,7 +115,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // 移动端已登录用户访问登录页，重定向到移动端首页
-    if (pathname === '/m/login' && user) {
+    if (pathname === '/m/login' && user === true) {
       return NextResponse.redirect(new URL('/m', request.url))
     }
 
@@ -118,7 +137,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 如果已登录用户访问首页或登录页，重定向到 dashboard
-  if ((pathname === '/' || pathname === '/login') && user) {
+  if ((pathname === '/' || pathname === '/login') && user === true) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
