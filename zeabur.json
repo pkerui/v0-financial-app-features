@@ -1,0 +1,9 @@
+{
+  "$schema": "https://zeabur.com/schemas/zeabur.json",
+  "build": {
+    "type": "nextjs"
+  },
+  "env": {
+    "NEXT_PUBLIC_BACKEND": "leancloud"
+  }
+}
