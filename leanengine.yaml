@@ -1,7 +1,7 @@
 # LeanCloud 云引擎配置
 # 文档: https://docs.leancloud.cn/sdk/engine/deploy/nodejs/
 
-runtime: nodejs18
+runtime: nodejs
 
 install:
   - rm -f pnpm-lock.yaml
