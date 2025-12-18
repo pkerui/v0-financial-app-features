@@ -1,0 +1,17 @@
+# Electron build artifacts
+dist-electron/
+electron/
+
+# Local caches
+.next/
+.turbo/
+.cache/
+
+# Development files
+*.dmg
+*.app
+*.exe
+
+# Environment files (will be set in Vercel dashboard)
+.env.local
+.env.leancloud

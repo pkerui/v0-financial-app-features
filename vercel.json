@@ -1,0 +1,12 @@
+{
+  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "NEXT_PUBLIC_BACKEND=leancloud npm run build",
+  "framework": "nextjs",
+  "regions": ["hkg1"],
+  "env": {
+    "NEXT_PUBLIC_BACKEND": "leancloud",
+    "NEXT_PUBLIC_LEANCLOUD_APP_ID": "vJ1HlM4FiTSnu3K9skXu8vOf-gzGzoHsz",
+    "NEXT_PUBLIC_LEANCLOUD_APP_KEY": "9rkhfgrEqADpzLotXEqMPeBg",
+    "NEXT_PUBLIC_LEANCLOUD_SERVER_URL": "https://vj1hlm4f.lc-cn-n1-shared.com"
+  }
+}
